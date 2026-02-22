@@ -15,4 +15,7 @@ pub enum App {
     Firefox,
     Terminal,
     Obsidian,
+    Telegram,
+    Steam,
+    Dolphin,
 }

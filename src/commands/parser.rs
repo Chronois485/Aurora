@@ -3,22 +3,19 @@ use super::{App, Command};
 pub fn parse_command(raw: &str) -> Command {
     let t = normalize(raw);
 
-    // вихід
     if matches!(t.as_str(), "вихід" | "вимкнись" | "заверши роботу" | "стоп") {
         return Command::Quit;
     }
 
-    // гучність
     if has_any(&t, &["гучність", "звук", "громкість"]) {
-        if has_any(&t, &["більше", "плюс", "вгору", "підніми", "додай"]) {
+        if has_any(&t, &["більше", "плюс", "вгору", "підніми", "додай", "вище"]) {
             return Command::VolumeUp;
         }
-        if has_any(&t, &["менше", "мінус", "вниз", "зменш", "убав"]) {
+        if has_any(&t, &["менше", "мінус", "вниз", "зменш", "убав", "нижче"]) {
             return Command::VolumeDown;
         }
     }
 
-    // відкрий <...>
     if has_any(&t, &["відкрий", "запусти", "включи"]) {
         if has_any(&t, &["firefox", "файрфокс", "браузер", "ферфакс", "фаєр фокус", "фаєрфоксу"]) {
             return Command::OpenApp(App::Firefox);
