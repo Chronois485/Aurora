@@ -1,9 +1,20 @@
+mod executor;
+
 use anyhow::{Context, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
-use cpal::Stream;
-use vosk::{Model, Recognizer, DecodingState};
+use vosk::{DecodingState, Model, Recognizer};
+
+#[derive(Debug, Clone)]
+enum Command {
+    OpenFirefox,
+    OpenTerminal,
+    VolumeUp,
+    VolumeDown,
+    Quit,
+    Unknown(String),
+}
 
 fn main() -> Result<()> {
     let model = Model::new("model/small-uk-v3-nano").context("Vosk model not found")?;
@@ -39,8 +50,7 @@ fn main() -> Result<()> {
     stream.play()?;
 
     let sample_rate = config.sample_rate as f32;
-    let mut rec = Recognizer::new(&model, sample_rate)
-        .context("Recognizer::new failed")?;
+    let mut rec = Recognizer::new(&model, sample_rate).context("Recognizer::new failed")?;
 
     let wake_word = "аврора";
 
@@ -59,13 +69,13 @@ fn main() -> Result<()> {
         if matches!(state, DecodingState::Finalized) {
             let res = rec.result();
             let text = match res {
-                vosk::CompleteResult::Single(single) => {
-                    single.text
-                }
+                vosk::CompleteResult::Single(single) => single.text,
                 vosk::CompleteResult::Multiple(multiple) => {
                     if let Some(first) = multiple.alternatives.first() {
                         first.text
-                    } else {""}
+                    } else {
+                        ""
+                    }
                 }
             };
             if text.is_empty() {
@@ -133,18 +143,21 @@ fn build_stream_f32(
     Ok(stream)
 }
 
-// fn extract_text(json: String) -> String {
-//     let v: serde_json::Value = match serde_json::from_str(&json) {
-//         Ok(v) => v,
-//         Err(_) => return String::new(),
-//     };
-//
-//     v.get("text")
-//         .and_then(|x| x.as_str())
-//         .unwrap_or("")
-//         .trim()
-//         .to_string()
-// }
+fn normalize_text(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c.is_whitespace() {
+                c
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
 
 fn contains_wake(text: &str, word: &str) -> bool {
     let t = text.to_lowercase();
