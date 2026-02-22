@@ -26,6 +26,15 @@ pub fn parse_command(raw: &str) -> Command {
         if has_any(&t, &["obsidian", "обсідіан", "нотатки"]) {
             return Command::OpenApp(App::Obsidian);
         }
+        if has_any(&t, &["ігри", "ігровий лаунчер", "steam", "стім"]) {
+            return Command::OpenApp(App::Steam);
+        }
+        if has_any(&t, &["файли", "файловий менеджер", "дельфін", "провідник"]) {
+            return Command::OpenApp(App::Dolphin);
+        }
+        if has_any(&t, &["telegram", "месенджер", "телеграм"]) {
+            return Command::OpenApp(App::Telegram);
+        }
     }
 
     Command::Unknown(t)
@@ -72,6 +81,24 @@ mod tests {
     fn parse_open_terminal() {
         let cmd = parse_command("відкрий термінал");
         assert!(matches!(cmd, Command::OpenApp(App::Terminal)));
+    }
+
+    #[test]
+    fn parse_open_telegram() {
+        let cmd = parse_command("відкрий телеграм");
+        assert!(matches!(cmd, Command::OpenApp(App::Telegram)));
+    }
+
+    #[test]
+    fn parse_open_steam() {
+        let cmd = parse_command("відкрий ігровий лаунчер");
+        assert!(matches!(cmd, Command::OpenApp(App::Steam)));
+    }
+
+    #[test]
+    fn parse_open_dolphin() {
+        let cmd = parse_command("відкрий дельфін");
+        assert!(matches!(cmd, Command::OpenApp(App::Dolphin)));
     }
 
     #[test]
