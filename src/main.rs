@@ -1,4 +1,6 @@
-mod executor;
+mod commands;
+
+use commands::{executor, parser};
 
 use anyhow::{Context, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -6,18 +8,8 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use vosk::{DecodingState, Model, Recognizer};
 
-#[derive(Debug, Clone)]
-enum Command {
-    OpenFirefox,
-    OpenTerminal,
-    VolumeUp,
-    VolumeDown,
-    Quit,
-    Unknown(String),
-}
-
 fn main() -> Result<()> {
-    let model = Model::new("model/small-uk-v3-nano").context("Vosk model not found")?;
+    let model = Model::new("models/small-uk-v3-normal").context("Vosk model not found")?;
 
     let host = cpal::default_host();
     let device = host
@@ -89,16 +81,22 @@ fn main() -> Result<()> {
                     armed = true;
                     armed_until = Instant::now() + command_window;
                     println!("Wake word heard, say command...");
-                    rec.reset()
-                } else {
-                    if Instant::now() <= armed_until {
-                        println!("Command: {text}");
-                    } else {
-                        println!("Timeout");
-                    }
-                    armed = false;
                     rec.reset();
                 }
+            } else {
+                if Instant::now() <= armed_until {
+                    println!("Command: {text}");
+                    let cmd = parser::parse_command(text);
+                    let keep_running = executor::execute(cmd);
+                    if !keep_running {
+                        return Ok(());
+                    }
+                } else {
+                    println!("Timeout");
+                }
+
+                armed = false;
+                rec.reset();
             }
         }
     }
@@ -141,22 +139,6 @@ fn build_stream_f32(
     )?;
 
     Ok(stream)
-}
-
-fn normalize_text(s: &str) -> String {
-    s.to_lowercase()
-        .chars()
-        .map(|c| {
-            if c.is_alphanumeric() || c.is_whitespace() {
-                c
-            } else {
-                ' '
-            }
-        })
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 fn contains_wake(text: &str, word: &str) -> bool {
