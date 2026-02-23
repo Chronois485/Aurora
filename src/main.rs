@@ -12,10 +12,8 @@ use vosk::{DecodingState, Model, Recognizer};
 const TARGET_SR: u32 = 16_000;
 
 fn main() -> Result<()> {
-    // --- STT model ---
     let model = Model::new("models/stt/small-uk-v3-normal").context("Vosk model not found")?;
 
-    // --- Audio input (cpal) ---
     let host = cpal::default_host();
     let device = host
         .default_input_device()
@@ -61,13 +59,9 @@ fn main() -> Result<()> {
     loop {
         let mono_in = rx.recv().context("Audio channel closed")?;
 
-        println!("got mono_in: {}", mono_in.len());
         let chunk_16k = rs.process(&mono_in);
-        println!("resampled: {}", chunk_16k.len());
 
-        println!("before accept_waveform");
         let state = rec.accept_waveform(&chunk_16k)?;
-        println!("after accept_waveform: {:?}", state);
 
         if matches!(state, DecodingState::Finalized) {
             let res = rec.result();
