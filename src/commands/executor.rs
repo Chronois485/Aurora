@@ -34,17 +34,6 @@ pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> bool {
     }
 }
 
-fn open_app_phrase(app: &App) -> &'static str {
-    match app {
-        App::Firefox => "Відкриваю Firefox",
-        App::Terminal => "Відкриваю термінал",
-        App::Dolphin => "Відкриваю Dolphin",
-        App::Obsidian => "Відкриваю Obsidian",
-        App::Steam => "Відкриваю Steam",
-        App::Telegram => "Відкриваю Telegram",
-    }
-}
-
 fn open_app<R: Runner>(runner: &mut R, app: App) {
     match app {
         App::Firefox => {
@@ -90,30 +79,6 @@ mod tests {
     use super::*;
     use crate::commands::{App, Command};
 
-    // Фейковий TTS: не викликає Piper, просто пише в список
-    #[derive(Default, Clone)]
-    struct FakeTts {
-        said: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
-    }
-
-    impl FakeTts {
-        fn say(&self, text: impl Into<String>) {
-            self.said.lock().unwrap().push(text.into());
-        }
-        fn all(&self) -> Vec<String> {
-            self.said.lock().unwrap().clone()
-        }
-    }
-
-    trait TtsLike {
-        fn say(&self, text: &str);
-    }
-    impl TtsLike for FakeTts {
-        fn say(&self, text: &str) {
-            FakeTts::say(self, text.to_string());
-        }
-    }
-
     #[derive(Default)]
     struct FakeRunner {
         calls: Vec<(String, Vec<String>)>,
@@ -146,12 +111,7 @@ mod tests {
             true
         }
     }
-
-    #[test]
-    fn phrase_for_firefox() {
-        assert_eq!(open_app_phrase(&App::Firefox), "Відкриваю Firefox");
-    }
-
+    
     #[test]
     fn execute_open_firefox_spawns_firefox() {
         let mut r = FakeRunner::default();
