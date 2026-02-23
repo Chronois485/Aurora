@@ -3,24 +3,38 @@ use super::{App, Command};
 pub fn parse_command(raw: &str) -> Command {
     let t = normalize(raw);
 
-    if matches!(t.as_str(), "вихід" | "вимкнись" | "заверши роботу" | "стоп") {
+    if matches!(t.as_str(), "вихід" | "вимкнись" | "заверши роботу" | "стоп")
+    {
         return Command::Quit;
     }
 
     if has_any(&t, &["гучність", "звук", "громкість"]) {
-        if has_any(&t, &["більше", "плюс", "вгору", "підніми", "додай", "вище"]) {
+        if has_any(&t, &["більше", "плюс", "вгору", "підніми", "додай", "вище"])
+        {
             return Command::VolumeUp;
         }
-        if has_any(&t, &["менше", "мінус", "вниз", "зменш", "убав", "нижче"]) {
+        if has_any(&t, &["менше", "мінус", "вниз", "зменш", "убав", "нижче"])
+        {
             return Command::VolumeDown;
         }
     }
 
     if has_any(&t, &["відкрий", "запусти", "включи"]) {
-        if has_any(&t, &["firefox", "файрфокс", "браузер", "ферфакс", "фаєр фокус", "фаєрфоксу"]) {
+        if has_any(
+            &t,
+            &[
+                "firefox",
+                "файрфокс",
+                "браузер",
+                "ферфакс",
+                "фаєр фокус",
+                "фаєрфоксу",
+            ],
+        ) {
             return Command::OpenApp(App::Firefox);
         }
-        if has_any(&t, &["термінал", "консоль", "командний рядок", "ghostty"]) {
+        if has_any(&t, &["термінал", "консоль", "командний рядок", "ghostty"])
+        {
             return Command::OpenApp(App::Terminal);
         }
         if has_any(&t, &["obsidian", "обсідіан", "нотатки"]) {
@@ -29,7 +43,8 @@ pub fn parse_command(raw: &str) -> Command {
         if has_any(&t, &["ігри", "ігровий лаунчер", "steam", "стім"]) {
             return Command::OpenApp(App::Steam);
         }
-        if has_any(&t, &["файли", "файловий менеджер", "дельфін", "провідник"]) {
+        if has_any(&t, &["файли", "файловий менеджер", "дельфін", "провідник"])
+        {
             return Command::OpenApp(App::Dolphin);
         }
         if has_any(&t, &["telegram", "месенджер", "телеграм"]) {
@@ -43,7 +58,13 @@ pub fn parse_command(raw: &str) -> Command {
 fn normalize(s: &str) -> String {
     s.to_lowercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() || c.is_whitespace() { c } else { ' ' })
+        .map(|c| {
+            if c.is_alphanumeric() || c.is_whitespace() {
+                c
+            } else {
+                ' '
+            }
+        })
         .collect::<String>()
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -115,7 +136,8 @@ mod tests {
 
     #[test]
     fn parse_quit_variants() {
-        for phrase in ["вихід", "вимкнись", "заверши роботу", "стоп"] {
+        for phrase in ["вихід", "вимкнись", "заверши роботу", "стоп"]
+        {
             let cmd = parse_command(phrase);
             assert!(matches!(cmd, Command::Quit), "failed for phrase: {phrase}");
         }

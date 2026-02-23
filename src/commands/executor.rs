@@ -8,7 +8,10 @@ pub struct SystemRunner;
 
 impl Runner for SystemRunner {
     fn spawn(&mut self, program: &str, args: &[&str]) -> bool {
-        std::process::Command::new(program).args(args).spawn().is_ok()
+        std::process::Command::new(program)
+            .args(args)
+            .spawn()
+            .is_ok()
     }
 }
 
@@ -27,15 +30,32 @@ pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> bool {
             true
         }
         Command::Quit => false,
-        Command::Unknown(_) => true,
+        Command::Unknown(text) => true,
+    }
+}
+
+fn open_app_phrase(app: &App) -> &'static str {
+    match app {
+        App::Firefox => "Відкриваю Firefox",
+        App::Terminal => "Відкриваю термінал",
+        App::Dolphin => "Відкриваю Dolphin",
+        App::Obsidian => "Відкриваю Obsidian",
+        App::Steam => "Відкриваю Steam",
+        App::Telegram => "Відкриваю Telegram",
     }
 }
 
 fn open_app<R: Runner>(runner: &mut R, app: App) {
     match app {
-        App::Firefox => { runner.spawn("firefox", &[]); }
-        App::Terminal => { runner.spawn("ghostty", &[]); }
-        App::Dolphin => { runner.spawn("dolphin", &[]); }
+        App::Firefox => {
+            runner.spawn("firefox", &[]);
+        }
+        App::Terminal => {
+            runner.spawn("ghostty", &[]);
+        }
+        App::Dolphin => {
+            runner.spawn("dolphin", &[]);
+        }
         App::Obsidian => {
             if !runner.spawn("obsidian", &[]) {
                 runner.spawn("flatpak", &["run", "md.obsidian.Obsidian"]);
@@ -60,7 +80,6 @@ fn set_volume<R: Runner>(runner: &mut R, delta: &str) {
     runner.spawn("wpctl", &["set-volume", "@DEFAULT_AUDIO_SINK@", delta]);
 }
 
-// Зручний wrapper для продакшну:
 pub fn execute(cmd: Command) -> bool {
     let mut r = SystemRunner;
     execute_with(&mut r, cmd)
@@ -70,6 +89,30 @@ pub fn execute(cmd: Command) -> bool {
 mod tests {
     use super::*;
     use crate::commands::{App, Command};
+
+    // Фейковий TTS: не викликає Piper, просто пише в список
+    #[derive(Default, Clone)]
+    struct FakeTts {
+        said: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    }
+
+    impl FakeTts {
+        fn say(&self, text: impl Into<String>) {
+            self.said.lock().unwrap().push(text.into());
+        }
+        fn all(&self) -> Vec<String> {
+            self.said.lock().unwrap().clone()
+        }
+    }
+
+    trait TtsLike {
+        fn say(&self, text: &str);
+    }
+    impl TtsLike for FakeTts {
+        fn say(&self, text: &str) {
+            FakeTts::say(self, text.to_string());
+        }
+    }
 
     #[derive(Default)]
     struct FakeRunner {
@@ -90,21 +133,23 @@ mod tests {
             if self.fail_obsidian && program == "obsidian" {
                 return false;
             }
-
             if self.fail_telegram && program == "Telegram" {
                 return false;
             }
-
             if self.fail_telegram_desktop && program == "telegram-desktop" {
                 return false;
             }
-
             if self.fail_steam && program == "steam" {
                 return false;
             }
 
             true
         }
+    }
+
+    #[test]
+    fn phrase_for_firefox() {
+        assert_eq!(open_app_phrase(&App::Firefox), "Відкриваю Firefox");
     }
 
     #[test]
@@ -131,12 +176,15 @@ mod tests {
         let keep = execute_with(&mut r, Command::OpenApp(App::Telegram));
         assert!(keep);
         assert_eq!(r.calls.len(), 1);
-        assert_eq!(r.calls[0].0, "Telegram")
+        assert_eq!(r.calls[0].0, "Telegram");
     }
 
     #[test]
     fn telegram_fallbacks_to_telegram_desktop_when_direct_spawn_fails() {
-        let mut r = FakeRunner { fail_telegram: true, ..Default::default() };
+        let mut r = FakeRunner {
+            fail_telegram: true,
+            ..Default::default()
+        };
         let keep = execute_with(&mut r, Command::OpenApp(App::Telegram));
         assert!(keep);
 
@@ -146,8 +194,12 @@ mod tests {
     }
 
     #[test]
-    fn telegram_fallbacks_to_flatpack_when_desktop_spawn_fails() {
-        let mut r = FakeRunner { fail_telegram: true, fail_telegram_desktop: true, ..Default::default() };
+    fn telegram_fallbacks_to_flatpak_when_desktop_spawn_fails() {
+        let mut r = FakeRunner {
+            fail_telegram: true,
+            fail_telegram_desktop: true,
+            ..Default::default()
+        };
         let keep = execute_with(&mut r, Command::OpenApp(App::Telegram));
         assert!(keep);
 
@@ -186,12 +238,15 @@ mod tests {
         let keep = execute_with(&mut r, Command::OpenApp(App::Obsidian));
         assert!(keep);
         assert_eq!(r.calls.len(), 1);
-        assert_eq!(r.calls[0].0, "obsidian")
+        assert_eq!(r.calls[0].0, "obsidian");
     }
 
     #[test]
     fn obsidian_fallbacks_to_flatpak_when_direct_spawn_fails() {
-        let mut r = FakeRunner { fail_obsidian: true, ..Default::default() };
+        let mut r = FakeRunner {
+            fail_obsidian: true,
+            ..Default::default()
+        };
         let keep = execute_with(&mut r, Command::OpenApp(App::Obsidian));
         assert!(keep);
 
@@ -213,7 +268,10 @@ mod tests {
 
     #[test]
     fn steam_fallbacks_to_flatpak_when_direct_spawn_fails() {
-        let mut r = FakeRunner { fail_steam: true, ..Default::default() };
+        let mut r = FakeRunner {
+            fail_steam: true,
+            ..Default::default()
+        };
         let keep = execute_with(&mut r, Command::OpenApp(App::Steam));
         assert!(keep);
 
