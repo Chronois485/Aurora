@@ -111,7 +111,7 @@ mod tests {
             true
         }
     }
-    
+
     #[test]
     fn execute_open_firefox_spawns_firefox() {
         let mut r = FakeRunner::default();

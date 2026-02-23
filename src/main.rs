@@ -2,109 +2,137 @@ mod audio;
 mod commands;
 mod settings;
 
+use crate::commands::parser::parse_command;
 use anyhow::{Context, Result};
 use audio::resample::LinearResampler;
 use commands::{executor, parser};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use settings::manager::get_setting;
 use std::sync::mpsc;
-use std::time::{Duration, Instant};
-use vosk::{DecodingState, Model, Recognizer};
+use std::{
+    io,
+    time::{Duration, Instant},
+};
+use vosk::{DecodingState, LogLevel, Model, Recognizer, set_log_level};
 
 const TARGET_SR: u32 = 16_000;
 
 fn main() -> Result<()> {
-    let model = Model::new("models/stt/small-uk-v3-normal").context("Vosk model not found")?;
-
-    let host = cpal::default_host();
-    let device = host
-        .default_input_device()
-        .context("No input device found")?;
-
-    let supported = device.default_input_config()?;
-    let config = supported.config();
-
-    println!("Input device: {}", device.description()?);
-    println!(
-        "Format: channels={}, sample_rate={}, sample_format={:?}",
-        config.channels,
-        config.sample_rate,
-        supported.sample_format()
-    );
-
-    let (tx, rx) = mpsc::channel::<Vec<i16>>();
-    let channels = config.channels as usize;
-
-    let stream = match supported.sample_format() {
-        cpal::SampleFormat::F32 => build_stream_f32(&device, &config, channels, tx)?,
-        _ => anyhow::bail!(
-            "Now supporting only f32. Your format: {:?}.",
-            supported.sample_format()
-        ),
+    let text_mode = match get_setting("text_mode", "settings.json").as_str() {
+        "true" => true,
+        _ => false,
     };
 
-    stream.play()?;
+    if text_mode {
+        loop {
+            let mut cmd = String::new();
+            println!("Waiting for command...");
+            io::stdin().read_line(&mut cmd)?;
+            let cmd = parse_command(cmd.trim());
+            println!("Recognized command {:?}", cmd);
 
-    let mut rec = Recognizer::new(&model, TARGET_SR as f32).context("Recognizer::new failed")?;
-
-    let input_sr = config.sample_rate;
-    let mut rs = LinearResampler::new(input_sr, TARGET_SR);
-
-    let wake_word = "аврора";
-    let command_window = Duration::from_secs(6);
-
-    let mut armed = false;
-    let mut armed_until = Instant::now();
-
-    println!("Waiting for wake word...");
-
-    loop {
-        let mono_in = rx.recv().context("Audio channel closed")?;
-
-        let chunk_16k = rs.process(&mono_in);
-
-        let state = rec.accept_waveform(&chunk_16k)?;
-
-        if matches!(state, DecodingState::Finalized) {
-            let res = rec.result();
-            let text: &str = match res {
-                vosk::CompleteResult::Single(single) => single.text,
-                vosk::CompleteResult::Multiple(multiple) => {
-                    if let Some(first) = multiple.alternatives.first() {
-                        first.text
-                    } else {
-                        ""
-                    }
-                }
-            };
-
-            if text.is_empty() {
-                continue;
+            let keep_running = executor::execute(cmd);
+            if !keep_running {
+                return Ok(());
             }
+        }
+    } else {
+        set_log_level(LogLevel::Error);
 
-            println!("final: {text}");
+        let model = Model::new("models/stt/small-uk-v3-normal").context("Vosk model not found")?;
 
-            if !armed {
-                if contains_wake(text, wake_word) {
-                    armed = true;
-                    armed_until = Instant::now() + command_window;
-                    println!("Wake word heard, say command...");
-                    rec.reset();
+        let host = cpal::default_host();
+        let device = host
+            .default_input_device()
+            .context("No input device found")?;
+
+        let supported = device.default_input_config()?;
+        let config = supported.config();
+
+        println!("Input device: {}", device.description()?);
+        println!(
+            "Format: channels={}, sample_rate={}, sample_format={:?}",
+            config.channels,
+            config.sample_rate,
+            supported.sample_format()
+        );
+
+        let (tx, rx) = mpsc::channel::<Vec<i16>>();
+        let channels = config.channels as usize;
+
+        let stream = match supported.sample_format() {
+            cpal::SampleFormat::F32 => build_stream_f32(&device, &config, channels, tx)?,
+            _ => anyhow::bail!(
+                "Now supporting only f32. Your format: {:?}.",
+                supported.sample_format()
+            ),
+        };
+
+        stream.play()?;
+
+        let mut rec =
+            Recognizer::new(&model, TARGET_SR as f32).context("Recognizer::new failed")?;
+
+        let input_sr = config.sample_rate;
+        let mut rs = LinearResampler::new(input_sr, TARGET_SR);
+
+        let wake_word = "аврора";
+        let command_window = Duration::from_secs(6);
+
+        let mut armed = false;
+        let mut armed_until = Instant::now();
+
+        println!("Waiting for wake word...");
+
+        loop {
+            let mono_in = rx.recv().context("Audio channel closed")?;
+
+            let chunk_16k = rs.process(&mono_in);
+
+            let state = rec.accept_waveform(&chunk_16k)?;
+
+            if matches!(state, DecodingState::Finalized) {
+                let res = rec.result();
+                let text: &str = match res {
+                    vosk::CompleteResult::Single(single) => single.text,
+                    vosk::CompleteResult::Multiple(multiple) => {
+                        if let Some(first) = multiple.alternatives.first() {
+                            first.text
+                        } else {
+                            ""
+                        }
+                    }
+                };
+
+                if text.is_empty() {
+                    continue;
                 }
-            } else {
-                if Instant::now() <= armed_until {
-                    println!("Command: {text}");
-                    let cmd = parser::parse_command(text);
 
-                    let keep_running = executor::execute(cmd);
-                    if !keep_running {
-                        return Ok(());
+                println!("final: {text}");
+
+                if !armed {
+                    if contains_wake(text, wake_word) {
+                        armed = true;
+                        armed_until = Instant::now() + command_window;
+                        println!("Wake word heard, say command...");
+                        rec.reset();
                     }
                 } else {
-                    println!("Timeout");
-                }
+                    if Instant::now() <= armed_until {
+                        println!("Command: {text}");
+                        let cmd = parser::parse_command(text);
 
-                armed = false;
-                rec.reset();
+                        let keep_running = executor::execute(cmd);
+                        if !keep_running {
+                            return Ok(());
+                        }
+                    } else {
+                        println!("Timeout");
+                    }
+
+                    armed = false;
+                    rec.reset();
+                }
             }
         }
     }
