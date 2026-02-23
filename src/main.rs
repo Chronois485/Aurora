@@ -1,5 +1,6 @@
 mod audio;
 mod commands;
+mod settings;
 
 use anyhow::{Context, Result};
 use audio::resample::LinearResampler;
