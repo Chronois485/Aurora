@@ -30,7 +30,7 @@ pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> bool {
             true
         }
         Command::Quit => false,
-        Command::Unknown(text) => true,
+        Command::Unknown(_text) => true,
     }
 }
 

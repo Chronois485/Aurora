@@ -2,27 +2,44 @@ mod audio;
 mod commands;
 mod settings;
 
-use crate::commands::parser::parse_command;
 use anyhow::{Context, Result};
 use audio::resample::LinearResampler;
-use commands::{executor, parser};
+use colored::Colorize;
+use commands::{
+    executor,
+    parser::{normalize, parse_command},
+};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use settings::manager::get_setting;
+use settings::manager::{get_setting, print_settings};
 use std::sync::mpsc;
 use std::{
     io,
     time::{Duration, Instant},
 };
 use vosk::{DecodingState, LogLevel, Model, Recognizer, set_log_level};
-use colored::Colorize;
 
 const TARGET_SR: u32 = 16_000;
+const SETTINGS_FILE_PATH: &str = "settings.json";
+
+enum Languages {
+    English,
+    Ukrainian,
+}
+
+enum Models {
+    Nano,
+    Small,
+    Normal,
+}
 
 fn main() -> Result<()> {
-    let text_mode = match get_setting("text_mode", "settings.json").as_str() {
+    let text_mode = match get_setting("text_mode", SETTINGS_FILE_PATH).as_str() {
         "true" => true,
         _ => false,
     };
+
+    print_settings(SETTINGS_FILE_PATH);
+    println!();
 
     if text_mode {
         loop {
@@ -30,7 +47,10 @@ fn main() -> Result<()> {
             println!("{}", "[*] Waiting for command...".cyan());
             io::stdin().read_line(&mut cmd)?;
             let cmd = parse_command(cmd.trim());
-            println!("{}", format!("[+] Recognized command {:?}", cmd).green().bold());
+            println!(
+                "{}",
+                format!("[+] Recognized command {:?}", cmd).green().bold()
+            );
 
             let keep_running = executor::execute(cmd);
             if !keep_running {
@@ -38,9 +58,53 @@ fn main() -> Result<()> {
             }
         }
     } else {
+        let model = match get_setting("model", SETTINGS_FILE_PATH).as_str() {
+            "nano" => Models::Nano,
+            "small" => Models::Small,
+            "normal" => Models::Normal,
+            model => {
+                println!(
+                    "{}\n{}\n{}",
+                    format!("[!] Unknown model: {}\n", model).red(),
+                    "[*] Available models: nano, small, normal".magenta(),
+                    "[*] Using default model (Normal)".cyan()
+                );
+                Models::Normal
+            }
+        };
+
+        let language = match get_setting("language", SETTINGS_FILE_PATH).as_str() {
+            "uk" => Languages::Ukrainian,
+            "en" => Languages::English,
+            lang => {
+                println!(
+                    "{}\n{}\n{}",
+                    format!("[!] Unknown language: {}\n", lang).red(),
+                    "[*] Available languages: English, Ukrainian".magenta(),
+                    "[*] Using default language (English)".cyan()
+                );
+                Languages::English
+            }
+        };
+
+        let mut model_path= String::from("models/stt/");
+
+        model_path.push_str(match language {
+            Languages::English => "en",
+            Languages::Ukrainian => "uk"
+        });
+
+        model_path.push('-');
+
+        model_path.push_str(match model {
+            Models::Nano => "nano",
+            Models::Small => "small",
+            Models::Normal => "normal"
+        });
+
         set_log_level(LogLevel::Error);
 
-        let model = Model::new("models/stt/small-uk-v3-normal").context("Vosk model not found")?;
+        let model = Model::new(model_path).context("Vosk model not found")?;
 
         let host = cpal::default_host();
         let device = host
@@ -50,7 +114,11 @@ fn main() -> Result<()> {
         let supported = device.default_input_config()?;
         let config = supported.config();
 
-        println!("{}", format!("[*] Input device: {}", device.description()?).magenta());
+        println!(
+            "{}",
+            format!("[*] Input device: {}", device.description()?).magenta()
+        );
+        println!();
         println!(
             "{}\n{}\n{}\n{}",
             "[*] Format:".bold().magenta(),
@@ -78,12 +146,16 @@ fn main() -> Result<()> {
         let input_sr = config.sample_rate;
         let mut rs = LinearResampler::new(input_sr, TARGET_SR);
 
-        let wake_word = "аврора";
+        let wake_word = match language {
+            Languages::English => "aurora",
+            Languages::Ukrainian => "аврора",
+        };
         let command_window = Duration::from_secs(6);
 
         let mut armed = false;
         let mut armed_until = Instant::now();
 
+        println!();
         println!("{}", "[*] Waiting for wake word...".cyan().italic());
 
         loop {
@@ -111,6 +183,7 @@ fn main() -> Result<()> {
                 }
 
                 if !armed {
+                    println!("{text}");
                     if contains_wake(text, wake_word) {
                         armed = true;
                         armed_until = Instant::now() + command_window;
@@ -121,7 +194,10 @@ fn main() -> Result<()> {
                     if Instant::now() <= armed_until {
                         println!("{}", format!("[*] Your command: {text}").cyan());
                         let cmd = parse_command(text);
-                        println!("{}", format!("[+] Recognized command: {:?}", cmd).green().bold());
+                        println!(
+                            "{}",
+                            format!("[+] Recognized command: {:?}", cmd).green().bold()
+                        );
 
                         let keep_running = executor::execute(cmd);
                         if !keep_running {
@@ -177,20 +253,4 @@ fn contains_wake(text: &str, word: &str) -> bool {
     let t = normalize(text);
     let w = normalize(word);
     t.contains(&w)
-}
-
-fn normalize(s: &str) -> String {
-    s.to_lowercase()
-        .chars()
-        .map(|c| {
-            if c.is_alphanumeric() || c.is_whitespace() {
-                c
-            } else {
-                ' '
-            }
-        })
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
 }

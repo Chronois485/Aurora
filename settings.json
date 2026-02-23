@@ -1,3 +1,5 @@
 {
-  "text_mode": "false"
+  "text_mode": "false",
+  "language": "uk",
+  "model": "normal"
 }

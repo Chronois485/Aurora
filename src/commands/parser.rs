@@ -3,23 +3,47 @@ use super::{App, Command};
 pub fn parse_command(raw: &str) -> Command {
     let t = normalize(raw);
 
-    if matches!(t.as_str(), "вихід" | "вимкнись" | "заверши роботу" | "стоп")
-    {
+    if matches!(
+        t.as_str(),
+        "вихід" | "вимкнись" | "заверши роботу" | "стоп" | "stop" | "exit" | "quit"
+    ) {
         return Command::Quit;
     }
 
-    if has_any(&t, &["гучність", "звук", "громкість"]) {
-        if has_any(&t, &["більше", "плюс", "вгору", "підніми", "додай", "вище"])
-        {
+    if has_any(&t, &["гучність", "звук", "громкість", "sound", "volume"]) {
+        if has_any(
+            &t,
+            &[
+                "більше",
+                "плюс",
+                "вгору",
+                "підніми",
+                "додай",
+                "вище",
+                "up",
+                "higher",
+            ],
+        ) {
             return Command::VolumeUp;
         }
-        if has_any(&t, &["менше", "мінус", "вниз", "зменш", "убав", "нижче"])
-        {
+        if has_any(
+            &t,
+            &[
+                "менше",
+                "мінус",
+                "вниз",
+                "зменш",
+                "убав",
+                "нижче",
+                "down",
+                "lower",
+            ],
+        ) {
             return Command::VolumeDown;
         }
     }
 
-    if has_any(&t, &["відкрий", "запусти", "включи"]) {
+    if has_any(&t, &["відкрий", "запусти", "включи", "open", "launch"]) {
         if has_any(
             &t,
             &[
@@ -29,25 +53,56 @@ pub fn parse_command(raw: &str) -> Command {
                 "ферфакс",
                 "фаєр фокус",
                 "фаєрфоксу",
+                "browser",
+                "internet browser",
             ],
         ) {
             return Command::OpenApp(App::Firefox);
         }
-        if has_any(&t, &["термінал", "консоль", "командний рядок", "ghostty"])
-        {
+        if has_any(
+            &t,
+            &[
+                "термінал",
+                "консоль",
+                "командний рядок",
+                "ghostty",
+                "terminal",
+            ],
+        ) {
             return Command::OpenApp(App::Terminal);
         }
-        if has_any(&t, &["obsidian", "обсідіан", "нотатки"]) {
+        if has_any(&t, &["obsidian", "обсідіан", "нотатки", "notes"]) {
             return Command::OpenApp(App::Obsidian);
         }
-        if has_any(&t, &["ігри", "ігровий лаунчер", "steam", "стім"]) {
+        if has_any(
+            &t,
+            &[
+                "ігри",
+                "ігровий лаунчер",
+                "steam",
+                "стім",
+                "games",
+                "game launcher",
+            ],
+        ) {
             return Command::OpenApp(App::Steam);
         }
-        if has_any(&t, &["файли", "файловий менеджер", "дельфін", "провідник"])
-        {
+        if has_any(
+            &t,
+            &[
+                "файли",
+                "файловий менеджер",
+                "дельфін",
+                "провідник",
+                "file explorer",
+                "dolphin",
+                "files",
+                "explorer",
+            ],
+        ) {
             return Command::OpenApp(App::Dolphin);
         }
-        if has_any(&t, &["telegram", "месенджер", "телеграм"]) {
+        if has_any(&t, &["telegram", "месенджер", "телеграм", "messenger"]) {
             return Command::OpenApp(App::Telegram);
         }
     }
@@ -55,7 +110,7 @@ pub fn parse_command(raw: &str) -> Command {
     Command::Unknown(t)
 }
 
-fn normalize(s: &str) -> String {
+pub fn normalize(s: &str) -> String {
     s.to_lowercase()
         .chars()
         .map(|c| {

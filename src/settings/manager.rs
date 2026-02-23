@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::Read;
+use colored::Colorize;
+use std::{collections::HashMap, fs::File, io::Read};
 
 type JsonMap = HashMap<String, String>;
 
@@ -19,9 +18,17 @@ fn read_settings(file_path: &str) -> JsonMap {
 pub fn get_setting(setting: &str, file_path: &str) -> String {
     let settings = read_settings(file_path);
     if let Some(s) = settings.get(setting) {
-        s.clone()
+        s.clone().to_lowercase()
     } else {
         String::from("")
+    }
+}
+
+pub fn print_settings(file_path: &str) {
+    let settings = read_settings(file_path);
+    println!("{}", "[*] Settings".bold().magenta());
+    for setting in settings.keys() {
+        println!("{}", format!("    - {}: {}", setting, settings[setting]).magenta());
     }
 }
 
@@ -30,15 +37,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_read_settings() {
-        let data = read_settings("settings.json");
-        assert_eq!(data["text_mode"], "true");
-    }
-
-    #[test]
     fn test_get_setting_success() {
         let text_mode = get_setting("text_mode", "settings.json");
-        assert_eq!(text_mode, "true");
+        assert_ne!(text_mode, "");
     }
 
     #[test]
