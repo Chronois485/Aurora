@@ -14,6 +14,7 @@ use std::{
     time::{Duration, Instant},
 };
 use vosk::{DecodingState, LogLevel, Model, Recognizer, set_log_level};
+use colored::Colorize;
 
 const TARGET_SR: u32 = 16_000;
 
@@ -26,10 +27,10 @@ fn main() -> Result<()> {
     if text_mode {
         loop {
             let mut cmd = String::new();
-            println!("Waiting for command...");
+            println!("{}", "[*] Waiting for command...".cyan());
             io::stdin().read_line(&mut cmd)?;
             let cmd = parse_command(cmd.trim());
-            println!("Recognized command {:?}", cmd);
+            println!("{}", format!("[+] Recognized command {:?}", cmd).green().bold());
 
             let keep_running = executor::execute(cmd);
             if !keep_running {
@@ -49,12 +50,13 @@ fn main() -> Result<()> {
         let supported = device.default_input_config()?;
         let config = supported.config();
 
-        println!("Input device: {}", device.description()?);
+        println!("{}", format!("[*] Input device: {}", device.description()?).magenta());
         println!(
-            "Format: channels={}, sample_rate={}, sample_format={:?}",
-            config.channels,
-            config.sample_rate,
-            supported.sample_format()
+            "{}\n{}\n{}\n{}",
+            "[*] Format:".bold().magenta(),
+            format!("    - channels={}", config.channels).magenta(),
+            format!("    - sample_rate={}", config.sample_rate).magenta(),
+            format!("    - sample_format={:?}", supported.sample_format()).magenta(),
         );
 
         let (tx, rx) = mpsc::channel::<Vec<i16>>();
@@ -82,7 +84,7 @@ fn main() -> Result<()> {
         let mut armed = false;
         let mut armed_until = Instant::now();
 
-        println!("Waiting for wake word...");
+        println!("{}", "[*] Waiting for wake word...".cyan().italic());
 
         loop {
             let mono_in = rx.recv().context("Audio channel closed")?;
@@ -108,26 +110,25 @@ fn main() -> Result<()> {
                     continue;
                 }
 
-                println!("final: {text}");
-
                 if !armed {
                     if contains_wake(text, wake_word) {
                         armed = true;
                         armed_until = Instant::now() + command_window;
-                        println!("Wake word heard, say command...");
+                        println!("{}", "[+] Wake word heard, say command...".green().bold());
                         rec.reset();
                     }
                 } else {
                     if Instant::now() <= armed_until {
-                        println!("Command: {text}");
-                        let cmd = parser::parse_command(text);
+                        println!("{}", format!("[*] Your command: {text}").cyan());
+                        let cmd = parse_command(text);
+                        println!("{}", format!("[+] Recognized command: {:?}", cmd).green().bold());
 
                         let keep_running = executor::execute(cmd);
                         if !keep_running {
                             return Ok(());
                         }
                     } else {
-                        println!("Timeout");
+                        println!("{}", "[!] Timeout".yellow());
                     }
 
                     armed = false;
