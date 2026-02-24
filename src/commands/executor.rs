@@ -29,6 +29,18 @@ pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> bool {
             set_volume(runner, "5%-");
             true
         }
+        Command::AudioPause => {
+            audio_pause(runner);
+            true
+        }
+        Command::AudioNext => {
+            audio_next(runner);
+            true
+        }
+        Command::AudioPrevious => {
+            audio_previous(runner);
+            true
+        }
         Command::Quit => false,
         Command::Unknown(_text) => true,
     }
@@ -67,6 +79,17 @@ fn open_app<R: Runner>(runner: &mut R, app: App) {
 
 fn set_volume<R: Runner>(runner: &mut R, delta: &str) {
     runner.spawn("wpctl", &["set-volume", "@DEFAULT_AUDIO_SINK@", delta]);
+}
+
+fn audio_pause<R: Runner>(runner: &mut R) {
+    runner.spawn("playerctl", &["play-pause"]);
+}
+fn audio_next<R: Runner>(runner: &mut R) {
+    runner.spawn("playerctl", &["next"]);
+}
+
+fn audio_previous<R: Runner>(runner: &mut R) {
+    runner.spawn("playerctl", &["previous"]);
 }
 
 pub fn execute(cmd: Command) -> bool {
@@ -239,5 +262,47 @@ mod tests {
         assert_eq!(r.calls[0].0, "steam");
         assert_eq!(r.calls[1].0, "flatpak");
         assert_eq!(r.calls[1].1, vec!["run", "com.valvesoftware.Steam"]);
+    }
+
+    #[test]
+    fn execute_audio_pause_calls_playerctl() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::AudioPause);
+        assert!(keep);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "playerctl");
+        assert_eq!(
+            r.calls[0].1,
+            vec!["play-pause"]
+        );
+    }
+    
+    #[test]
+    fn execute_audio_next_calls_playerctl() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::AudioNext);
+        assert!(keep);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "playerctl");
+        assert_eq!(
+            r.calls[0].1,
+            vec!["next"]
+        );
+    }
+    
+    #[test]
+    fn execute_audio_previous_calls_playerctl() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::AudioPrevious);
+        assert!(keep);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "playerctl");
+        assert_eq!(
+            r.calls[0].1,
+            vec!["previous"]
+        );
     }
 }

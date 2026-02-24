@@ -6,6 +6,9 @@ pub enum Command {
     OpenApp(App),
     VolumeUp,
     VolumeDown,
+    AudioPause,
+    AudioNext,
+    AudioPrevious,
     Quit,
     Unknown(String),
 }
