@@ -1,5 +1,6 @@
 {
   "text_mode": "false",
+  "conversation_mode": "true",
   "language": "uk",
   "model": "normal"
 }

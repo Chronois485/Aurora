@@ -19,6 +19,7 @@ use vosk::{DecodingState, LogLevel, Model, Recognizer, set_log_level};
 
 const TARGET_SR: u32 = 16_000;
 const SETTINGS_FILE_PATH: &str = "settings.json";
+const COMMAND_WINDOW: Duration = Duration::from_secs(6);
 
 enum Languages {
     English,
@@ -51,7 +52,11 @@ fn main() -> Result<()> {
                 format!("[+] Recognized command {:?}", cmd).green().bold()
             );
 
-            let keep_running = executor::execute(cmd);
+            let keep_running = match executor::execute(cmd).as_str() {
+                "running" => true,
+                "end_conversation" => true,
+                _ => false,
+            };
             if !keep_running {
                 return Ok(());
             }
@@ -100,6 +105,11 @@ fn main() -> Result<()> {
             Models::Small => "small",
             Models::Normal => "normal",
         });
+
+        let continuous_mode = match get_setting("continuous_mode", SETTINGS_FILE_PATH).as_str() {
+            "true" => true,
+            _ => false,
+        };
 
         set_log_level(LogLevel::Error);
 
@@ -154,14 +164,17 @@ fn main() -> Result<()> {
             Languages::English => "aurora",
             Languages::Ukrainian => "аврора",
         };
-        let command_window = Duration::from_secs(6);
 
         let mut armed = false;
         let mut armed_until = Instant::now();
+        let mut in_conversation = false;
 
         println!("{}", "[+] Initialization complete!".green());
-
         println!();
+        if continuous_mode {
+            println!("{}", "[*] Continuous mode enabled".cyan().italic());
+        }
+
         println!("{}", "[*] Waiting for wake word...".cyan().italic());
 
         loop {
@@ -196,8 +209,12 @@ fn main() -> Result<()> {
                     println!("{text}");
                     if contains_wake(text, wake_word) {
                         armed = true;
-                        armed_until = Instant::now() + command_window;
+                        armed_until = Instant::now() + COMMAND_WINDOW;
+                        in_conversation = continuous_mode;
                         println!("{}", "[+] Wake word heard, say command...".green().bold());
+                        if continuous_mode {
+                            println!("{}", "[*] Continuous mode".cyan().bold());
+                        }
                         rec.reset();
                     }
                 } else {
@@ -209,15 +226,36 @@ fn main() -> Result<()> {
                             format!("[+] Recognized command: {:?}", cmd).green().bold()
                         );
 
-                        let keep_running = executor::execute(cmd);
+                        let keep_running = match executor::execute(cmd).as_str() {
+                            "running" => true,
+                            "end_conversation" => {
+                                println!("{}", "[+] Ending conversation".green().bold());
+                                in_conversation = false;
+                                true
+                            }
+                            _ => false,
+                        };
+
                         if !keep_running {
                             return Ok(());
                         }
+
+                        if in_conversation {
+                            armed_until = Instant::now() + COMMAND_WINDOW;
+                            println!("{}", "[*] Ready for next command...".cyan());
+                        } else {
+                            armed = false;
+                            println!();
+                            println!("{}", "[*] Waiting for wake word...".cyan().italic());
+                        }
                     } else {
                         println!("{}", "[!] Timeout".yellow());
+                        in_conversation = false;
+                        armed = false;
+                        println!();
+                        println!("{}", "[*] Waiting for wake word...".cyan().italic());
                     }
 
-                    armed = false;
                     rec.reset();
                 }
             }

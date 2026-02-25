@@ -11,6 +11,21 @@ pub fn parse_command(raw: &str) -> Command {
         return Command::Quit;
     }
 
+    if has_any(
+        &t,
+        &[
+            "досить",
+            "все",
+            "закінчимо",
+            "that's all",
+            "that's it",
+            "nevermind",
+            "bye",
+        ],
+    ) {
+        return Command::EndConversation;
+    }
+
     if has_any(&t, &["знайди ", "пошук ", "шукай ", "find ", "search "]) {
         for prefix in ["знайди ", "пошук ", "шукай ", "find ", "search "].iter() {
             if t.starts_with(prefix) {

@@ -15,38 +15,39 @@ impl Runner for SystemRunner {
     }
 }
 
-pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> bool {
+pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> &str {
     match cmd {
         Command::OpenApp(app) => {
             open_app(runner, app);
-            true
+            "running"
         }
         Command::VolumeUp => {
             set_volume(runner, "5%+");
-            true
+            "runing"
         }
         Command::VolumeDown => {
             set_volume(runner, "5%-");
-            true
+            "running"
         }
         Command::AudioPause => {
             audio_pause(runner);
-            true
+            "running"
         }
         Command::AudioNext => {
             audio_next(runner);
-            true
+            "running"
         }
         Command::AudioPrevious => {
             audio_previous(runner);
-            true
+            "running"
         }
         Command::FindInInternet(promt) => {
             find_in_internet(&promt);
-            true
+            "running"
         }
-        Command::Quit => false,
-        Command::Unknown(_text) => true,
+        Command::EndConversation => "end conversation",
+        Command::Quit => "quit",
+        Command::Unknown(_text) => "running",
     }
 }
 
@@ -101,9 +102,9 @@ fn audio_previous<R: Runner>(runner: &mut R) {
     runner.spawn("playerctl", &["previous"]);
 }
 
-pub fn execute(cmd: Command) -> bool {
+pub fn execute(cmd: Command) -> String {
     let mut r = SystemRunner;
-    execute_with(&mut r, cmd)
+    String::from(execute_with(&mut r, cmd))
 }
 
 #[cfg(test)]
@@ -148,7 +149,7 @@ mod tests {
     fn execute_open_firefox_spawns_firefox() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::OpenApp(App::Firefox));
-        assert!(keep);
+        assert_eq!(keep, "running");
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "firefox");
     }
@@ -157,7 +158,7 @@ mod tests {
     fn execute_open_dolphin_spawns_dolphin() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::OpenApp(App::Dolphin));
-        assert!(keep);
+        assert_eq!(keep, "running");
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "dolphin");
     }
@@ -166,7 +167,7 @@ mod tests {
     fn execute_open_telegram_spawns_telegram() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::OpenApp(App::Telegram));
-        assert!(keep);
+        assert_eq!(keep, "running");
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "Telegram");
     }
@@ -178,7 +179,7 @@ mod tests {
             ..Default::default()
         };
         let keep = execute_with(&mut r, Command::OpenApp(App::Telegram));
-        assert!(keep);
+        assert_eq!(keep, "running");
 
         assert_eq!(r.calls.len(), 2);
         assert_eq!(r.calls[0].0, "Telegram");
@@ -193,7 +194,7 @@ mod tests {
             ..Default::default()
         };
         let keep = execute_with(&mut r, Command::OpenApp(App::Telegram));
-        assert!(keep);
+        assert_eq!(keep, "running");
 
         assert_eq!(r.calls.len(), 3);
         assert_eq!(r.calls[0].0, "Telegram");
@@ -206,7 +207,7 @@ mod tests {
     fn execute_volume_up_calls_wpctl() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::VolumeUp);
-        assert!(keep);
+        assert_eq!(keep, "running");
 
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "wpctl");
@@ -220,7 +221,7 @@ mod tests {
     fn execute_quit_stops() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::Quit);
-        assert!(!keep);
+        assert_eq!(keep, "running");
         assert!(r.calls.is_empty());
     }
 
@@ -228,7 +229,7 @@ mod tests {
     fn execute_open_obsidian_spawns_obsidian() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::OpenApp(App::Obsidian));
-        assert!(keep);
+        assert_eq!(keep, "running");
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "obsidian");
     }
@@ -240,7 +241,7 @@ mod tests {
             ..Default::default()
         };
         let keep = execute_with(&mut r, Command::OpenApp(App::Obsidian));
-        assert!(keep);
+        assert_eq!(keep, "running");
 
         assert_eq!(r.calls.len(), 2);
         assert_eq!(r.calls[0].0, "obsidian");
@@ -252,7 +253,7 @@ mod tests {
     fn execute_open_steam_spawns_steam() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::OpenApp(App::Steam));
-        assert!(keep);
+        assert_eq!(keep, "running");
 
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "steam");
@@ -265,7 +266,7 @@ mod tests {
             ..Default::default()
         };
         let keep = execute_with(&mut r, Command::OpenApp(App::Steam));
-        assert!(keep);
+        assert_eq!(keep, "running");
 
         assert_eq!(r.calls.len(), 2);
         assert_eq!(r.calls[0].0, "steam");
@@ -277,7 +278,7 @@ mod tests {
     fn execute_audio_pause_calls_playerctl() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::AudioPause);
-        assert!(keep);
+        assert_eq!(keep, "running");
 
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "playerctl");
@@ -288,7 +289,7 @@ mod tests {
     fn execute_audio_next_calls_playerctl() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::AudioNext);
-        assert!(keep);
+        assert_eq!(keep, "running");
 
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "playerctl");
@@ -299,7 +300,7 @@ mod tests {
     fn execute_audio_previous_calls_playerctl() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::AudioPrevious);
-        assert!(keep);
+        assert_eq!(keep, "running");
 
         assert_eq!(r.calls.len(), 2);
         assert_eq!(r.calls[0].0, "playerctl");
