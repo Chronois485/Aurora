@@ -41,6 +41,10 @@ pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> bool {
             audio_previous(runner);
             true
         }
+        Command::FindInInternet(promt) => {
+            find_in_internet(&promt);
+            true
+        }
         Command::Quit => false,
         Command::Unknown(_text) => true,
     }
@@ -75,6 +79,10 @@ fn open_app<R: Runner>(runner: &mut R, app: App) {
             }
         }
     }
+}
+
+fn find_in_internet(promt: &String) {
+    let _ = open::that(format!("https://www.google.com/search?q={}", promt));
 }
 
 fn set_volume<R: Runner>(runner: &mut R, delta: &str) {
@@ -273,12 +281,9 @@ mod tests {
 
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "playerctl");
-        assert_eq!(
-            r.calls[0].1,
-            vec!["play-pause"]
-        );
+        assert_eq!(r.calls[0].1, vec!["play-pause"]);
     }
-    
+
     #[test]
     fn execute_audio_next_calls_playerctl() {
         let mut r = FakeRunner::default();
@@ -287,12 +292,9 @@ mod tests {
 
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "playerctl");
-        assert_eq!(
-            r.calls[0].1,
-            vec!["next"]
-        );
+        assert_eq!(r.calls[0].1, vec!["next"]);
     }
-    
+
     #[test]
     fn execute_audio_previous_calls_playerctl() {
         let mut r = FakeRunner::default();
@@ -301,14 +303,8 @@ mod tests {
 
         assert_eq!(r.calls.len(), 2);
         assert_eq!(r.calls[0].0, "playerctl");
-        assert_eq!(
-            r.calls[0].1,
-            vec!["previous"]
-        );
+        assert_eq!(r.calls[0].1, vec!["previous"]);
         assert_eq!(r.calls[1].0, "playerctl");
-        assert_eq!(
-            r.calls[1].1,
-            vec!["previous"]
-        );
+        assert_eq!(r.calls[1].1, vec!["previous"]);
     }
 }

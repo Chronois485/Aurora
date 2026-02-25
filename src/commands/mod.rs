@@ -9,6 +9,7 @@ pub enum Command {
     AudioPause,
     AudioNext,
     AudioPrevious,
+    FindInInternet(String),
     Quit,
     Unknown(String),
 }

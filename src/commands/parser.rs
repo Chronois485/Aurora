@@ -1,5 +1,5 @@
-use crate::normalizer::text::normalize;
 use super::{App, Command};
+use crate::normalizer::text::normalize;
 
 pub fn parse_command(raw: &str) -> Command {
     let t = normalize(raw);
@@ -9,6 +9,15 @@ pub fn parse_command(raw: &str) -> Command {
         "вихід" | "вимкнись" | "заверши роботу" | "стоп" | "stop" | "exit" | "quit"
     ) {
         return Command::Quit;
+    }
+
+    if has_any(&t, &["знайди ", "пошук ", "шукай ", "find ", "search "]) {
+        for prefix in ["знайди ", "пошук ", "шукай ", "find ", "search "].iter() {
+            if t.starts_with(prefix) {
+                let query = t.trim_start_matches(prefix);
+                return Command::FindInInternet(query.to_string());
+            }
+        }
     }
 
     if has_any(&t, &["гучність", "звук", "громкість", "sound", "volume"]) {
@@ -108,13 +117,33 @@ pub fn parse_command(raw: &str) -> Command {
         }
     }
 
-    if has_any(&t, &["постав на паузу", "пауза", "віднови", "зніми з паузи", "play", "pause"]) {
+    if has_any(
+        &t,
+        &[
+            "постав на паузу",
+            "пауза",
+            "віднови",
+            "зніми з паузи",
+            "play",
+            "pause",
+        ],
+    ) {
         return Command::AudioPause;
     }
 
     if has_any(&t, &["наступний", "наступна", "наступне", "next"]) {
         return Command::AudioNext;
-    } else if has_any(&t, &["минула", "минулий", "минуле", "минулі", "минуло", "previous"]) {
+    } else if has_any(
+        &t,
+        &[
+            "минула",
+            "минулий",
+            "минуле",
+            "минулі",
+            "минуло",
+            "previous",
+        ],
+    ) {
         return Command::AudioPrevious;
     }
 
@@ -217,6 +246,16 @@ mod tests {
         match cmd {
             Command::Unknown(t) => assert!(t.contains("зроби")),
             _ => panic!("expected Unknown"),
+        }
+    }
+
+    #[test]
+    fn parse_find_in_internet() {
+        let cmd = parse_command("знайди парабола");
+        if let Command::FindInInternet(query) = cmd {
+            assert_eq!(query, "парабола");
+        } else {
+            panic!("expected FindInInternet");
         }
     }
 }

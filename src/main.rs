@@ -1,20 +1,14 @@
 mod audio;
 mod commands;
-mod settings;
 mod normalizer;
+mod settings;
 
 use anyhow::{Context, Result};
 use audio::resample::LinearResampler;
 use colored::Colorize;
-use commands::{
-    executor,
-    parser::parse_command,
-};
-use normalizer::{
-    text,
-    audio::AudioNormalizer,
-};
+use commands::{executor, parser::parse_command};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use normalizer::{audio::AudioNormalizer, text};
 use settings::manager::{get_setting, print_settings};
 use std::sync::mpsc;
 use std::{
@@ -92,11 +86,11 @@ fn main() -> Result<()> {
             }
         };
 
-        let mut model_path= String::from("models/stt/");
+        let mut model_path = String::from("models/stt/");
 
         model_path.push_str(match language {
             Languages::English => "en",
-            Languages::Ukrainian => "uk"
+            Languages::Ukrainian => "uk",
         });
 
         model_path.push('-');
@@ -104,7 +98,7 @@ fn main() -> Result<()> {
         model_path.push_str(match model {
             Models::Nano => "nano",
             Models::Small => "small",
-            Models::Normal => "normal"
+            Models::Normal => "normal",
         });
 
         set_log_level(LogLevel::Error);
@@ -125,7 +119,7 @@ fn main() -> Result<()> {
 
         println!(
             "{}{}",
-            "[*] Input device: ".magenta().italic(),
+            "[*] Input device: ".magenta().bold(),
             format!("{}", device.description()?).magenta()
         );
         println!();
@@ -174,7 +168,7 @@ fn main() -> Result<()> {
             let mono_in = rx.recv().context("Audio channel closed")?;
 
             let mut chunk_16k = rs.process(&mono_in);
-            
+
             if !norm.process(&mut chunk_16k) {
                 continue;
             }
