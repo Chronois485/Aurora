@@ -28,7 +28,10 @@ pub fn print_settings(file_path: &str) {
     let settings = read_settings(file_path);
     println!("{}", "[*] Settings".bold().magenta());
     for setting in settings.keys() {
-        println!("{}", format!("    - {}: {}", setting, settings[setting]).magenta());
+        println!(
+            "{}",
+            format!("    - {}: {}", setting, settings[setting]).magenta()
+        );
     }
 }
 
