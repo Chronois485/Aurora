@@ -1,13 +1,18 @@
 mod audio;
 mod commands;
 mod settings;
+mod normalizer;
 
 use anyhow::{Context, Result};
 use audio::resample::LinearResampler;
 use colored::Colorize;
 use commands::{
     executor,
-    parser::{normalize, parse_command},
+    parser::parse_command,
+};
+use normalizer::{
+    text,
+    audio::AudioNormalizer,
 };
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use settings::manager::{get_setting, print_settings};
@@ -104,6 +109,10 @@ fn main() -> Result<()> {
 
         set_log_level(LogLevel::Error);
 
+        println!();
+        println!("{}", "[*] Initializing...".magenta());
+
+        let mut norm = AudioNormalizer::new();
         let model = Model::new(model_path).context("Vosk model not found")?;
 
         let host = cpal::default_host();
@@ -115,8 +124,9 @@ fn main() -> Result<()> {
         let config = supported.config();
 
         println!(
-            "{}",
-            format!("[*] Input device: {}", device.description()?).magenta()
+            "{}{}",
+            "[*] Input device: ".magenta().italic(),
+            format!("{}", device.description()?).magenta()
         );
         println!();
         println!(
@@ -155,13 +165,19 @@ fn main() -> Result<()> {
         let mut armed = false;
         let mut armed_until = Instant::now();
 
+        println!("{}", "[+] Initialization complete!".green());
+
         println!();
         println!("{}", "[*] Waiting for wake word...".cyan().italic());
 
         loop {
             let mono_in = rx.recv().context("Audio channel closed")?;
 
-            let chunk_16k = rs.process(&mono_in);
+            let mut chunk_16k = rs.process(&mono_in);
+            
+            if !norm.process(&mut chunk_16k) {
+                continue;
+            }
 
             let state = rec.accept_waveform(&chunk_16k)?;
 
@@ -250,7 +266,7 @@ fn build_stream_f32(
 }
 
 fn contains_wake(text: &str, word: &str) -> bool {
-    let t = normalize(text);
-    let w = normalize(word);
+    let t = text::normalize(text);
+    let w = text::normalize(word);
     t.contains(&w)
 }

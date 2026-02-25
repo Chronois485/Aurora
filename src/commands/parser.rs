@@ -1,3 +1,4 @@
+use crate::normalizer::text::normalize;
 use super::{App, Command};
 
 pub fn parse_command(raw: &str) -> Command {
@@ -110,30 +111,14 @@ pub fn parse_command(raw: &str) -> Command {
     if has_any(&t, &["постав на паузу", "пауза", "віднови", "зніми з паузи", "play", "pause"]) {
         return Command::AudioPause;
     }
-    
+
     if has_any(&t, &["наступний", "наступна", "наступне", "next"]) {
         return Command::AudioNext;
-    } else if has_any(&t, &["минула", "минулий", "минуле", "минулі", "минуло", "previous"]) { 
+    } else if has_any(&t, &["минула", "минулий", "минуле", "минулі", "минуло", "previous"]) {
         return Command::AudioPrevious;
     }
 
     Command::Unknown(t)
-}
-
-pub fn normalize(s: &str) -> String {
-    s.to_lowercase()
-        .chars()
-        .map(|c| {
-            if c.is_alphanumeric() || c.is_whitespace() {
-                c
-            } else {
-                ' '
-            }
-        })
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 fn has_any(text: &str, needles: &[&str]) -> bool {
@@ -207,7 +192,7 @@ mod tests {
             assert!(matches!(cmd, Command::Quit), "failed for phrase: {phrase}");
         }
     }
-    
+
     #[test]
     fn parse_audio_pause() {
         let cmd = parse_command("постав на паузу");
