@@ -90,6 +90,7 @@ fn audio_next<R: Runner>(runner: &mut R) {
 
 fn audio_previous<R: Runner>(runner: &mut R) {
     runner.spawn("playerctl", &["previous"]);
+    runner.spawn("playerctl", &["previous"]);
 }
 
 pub fn execute(cmd: Command) -> bool {
@@ -298,10 +299,15 @@ mod tests {
         let keep = execute_with(&mut r, Command::AudioPrevious);
         assert!(keep);
 
-        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls.len(), 2);
         assert_eq!(r.calls[0].0, "playerctl");
         assert_eq!(
             r.calls[0].1,
+            vec!["previous"]
+        );
+        assert_eq!(r.calls[1].0, "playerctl");
+        assert_eq!(
+            r.calls[1].1,
             vec!["previous"]
         );
     }

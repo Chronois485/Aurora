@@ -107,6 +107,16 @@ pub fn parse_command(raw: &str) -> Command {
         }
     }
 
+    if has_any(&t, &["постав на паузу", "пауза", "віднови", "зніми з паузи", "play", "pause"]) {
+        return Command::AudioPause;
+    }
+    
+    if has_any(&t, &["наступний", "наступна", "наступне", "next"]) {
+        return Command::AudioNext;
+    } else if has_any(&t, &["минула", "минулий", "минуле", "минулі", "минуло", "previous"]) { 
+        return Command::AudioPrevious;
+    }
+
     Command::Unknown(t)
 }
 
@@ -196,6 +206,24 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(matches!(cmd, Command::Quit), "failed for phrase: {phrase}");
         }
+    }
+    
+    #[test]
+    fn parse_audio_pause() {
+        let cmd = parse_command("постав на паузу");
+        assert!(matches!(cmd, Command::AudioPause));
+    }
+
+    #[test]
+    fn parse_audio_next() {
+        let cmd = parse_command("наступна пісня");
+        assert!(matches!(cmd, Command::AudioNext));
+    }
+
+    #[test]
+    fn parse_audio_previous() {
+        let cmd = parse_command("минула пісня");
+        assert!(matches!(cmd, Command::AudioPrevious));
     }
 
     #[test]
