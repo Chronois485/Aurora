@@ -15,7 +15,7 @@ use std::{
     io,
     time::{Duration, Instant},
 };
-use vosk::{DecodingState, LogLevel, Model, Recognizer, set_log_level};
+use vosk::{set_log_level, DecodingState, LogLevel, Model, Recognizer};
 
 const TARGET_SR: u32 = 16_000;
 const SETTINGS_FILE_PATH: &str = "settings.json";
@@ -33,10 +33,10 @@ enum Models {
 }
 
 fn main() -> Result<()> {
-    let text_mode = match get_setting("text_mode", SETTINGS_FILE_PATH).as_str() {
-        "true" => true,
-        _ => false,
-    };
+    let text_mode = matches!(
+        get_setting("text_mode", SETTINGS_FILE_PATH).as_str(),
+        "true"
+    );
 
     print_settings(SETTINGS_FILE_PATH);
     println!();
@@ -52,13 +52,9 @@ fn main() -> Result<()> {
                 format!("[+] Recognized command {:?}", cmd).green().bold()
             );
 
-            let keep_running = match executor::execute(cmd).as_str() {
-                "running" => true,
-                "end_conversation" => true,
-                _ => false,
-            };
-            if !keep_running {
-                return Ok(());
+            match executor::execute(cmd) {
+                commands::CommandResult::Running | commands::CommandResult::EndConversation => {}
+                commands::CommandResult::Quit => return Ok(()),
             }
         }
     } else {
@@ -106,10 +102,10 @@ fn main() -> Result<()> {
             Models::Normal => "normal",
         });
 
-        let continuous_mode = match get_setting("continuous_mode", SETTINGS_FILE_PATH).as_str() {
-            "true" => true,
-            _ => false,
-        };
+        let continuous_mode = matches!(
+            get_setting("continuous_mode", SETTINGS_FILE_PATH).as_str(),
+            "true"
+        );
 
         set_log_level(LogLevel::Error);
 
@@ -226,18 +222,13 @@ fn main() -> Result<()> {
                             format!("[+] Recognized command: {:?}", cmd).green().bold()
                         );
 
-                        let keep_running = match executor::execute(cmd).as_str() {
-                            "running" => true,
-                            "end_conversation" => {
+                        match executor::execute(cmd) {
+                            commands::CommandResult::Running => {}
+                            commands::CommandResult::EndConversation => {
                                 println!("{}", "[+] Ending conversation".green().bold());
                                 in_conversation = false;
-                                true
                             }
-                            _ => false,
-                        };
-
-                        if !keep_running {
-                            return Ok(());
+                            commands::CommandResult::Quit => return Ok(()),
                         }
 
                         if in_conversation {

@@ -1,3 +1,5 @@
+use crate::commands::CommandResult;
+
 use super::{App, Command};
 
 pub trait Runner {
@@ -15,43 +17,43 @@ impl Runner for SystemRunner {
     }
 }
 
-pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> &str {
+pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> CommandResult {
     match cmd {
         Command::OpenApp(app) => {
             open_app(runner, app);
-            "running"
+            CommandResult::Running
         }
         Command::VolumeUp => {
             set_volume(runner, "5%+");
-            "runing"
+            CommandResult::Running
         }
         Command::VolumeDown => {
             set_volume(runner, "5%-");
-            "running"
+            CommandResult::Running
         }
         Command::AudioPause => {
             audio_pause(runner);
-            "running"
+            CommandResult::Running
         }
         Command::AudioNext => {
             audio_next(runner);
-            "running"
+            CommandResult::Running
         }
         Command::AudioPrevious => {
             audio_previous(runner);
-            "running"
+            CommandResult::Running
         }
-        Command::FindInInternet(promt) => {
-            find_in_internet(&promt);
-            "running"
+        Command::FindInInternet(prompt) => {
+            find_in_internet(&prompt);
+            CommandResult::Running
         }
-        Command::EndConversation => "end conversation",
+        Command::EndConversation => CommandResult::EndConversation,
         Command::Screenshot => {
             screenshot(runner);
-            "running"
+            CommandResult::Running
         }
-        Command::Quit => "quit",
-        Command::Unknown(_text) => "running",
+        Command::Quit => CommandResult::Quit,
+        Command::Unknown(_text) => CommandResult::Running,
     }
 }
 
@@ -77,17 +79,15 @@ fn open_app<R: Runner>(runner: &mut R, app: App) {
             }
         }
         App::Telegram => {
-            if !runner.spawn("Telegram", &[]) {
-                if !runner.spawn("telegram-desktop", &[]) {
-                    runner.spawn("flatpak", &["run", "org.telegram.desktop"]);
-                }
+            if !runner.spawn("Telegram", &[]) && !runner.spawn("telegram-desktop", &[]) {
+                runner.spawn("flatpak", &["run", "org.telegram.desktop"]);
             }
         }
     }
 }
 
-fn find_in_internet(promt: &String) {
-    let _ = open::that(format!("https://www.google.com/search?q={}", promt));
+fn find_in_internet(prompt: &String) {
+    let _ = open::that(format!("https://www.google.com/search?q={}", prompt));
 }
 
 fn screenshot<R: Runner>(runner: &mut R) {
@@ -106,13 +106,14 @@ fn audio_next<R: Runner>(runner: &mut R) {
 }
 
 fn audio_previous<R: Runner>(runner: &mut R) {
+    // Call twice to skip to the previous track (first call restarts current track)
     runner.spawn("playerctl", &["previous"]);
     runner.spawn("playerctl", &["previous"]);
 }
 
-pub fn execute(cmd: Command) -> String {
+pub fn execute(cmd: Command) -> CommandResult {
     let mut r = SystemRunner;
-    String::from(execute_with(&mut r, cmd))
+    execute_with(&mut r, cmd)
 }
 
 #[cfg(test)]
@@ -157,7 +158,7 @@ mod tests {
     fn execute_open_firefox_spawns_firefox() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::OpenApp(App::Firefox));
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "firefox");
     }
@@ -166,7 +167,7 @@ mod tests {
     fn execute_open_dolphin_spawns_dolphin() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::OpenApp(App::Dolphin));
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "dolphin");
     }
@@ -175,7 +176,7 @@ mod tests {
     fn execute_open_telegram_spawns_telegram() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::OpenApp(App::Telegram));
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "Telegram");
     }
@@ -187,7 +188,7 @@ mod tests {
             ..Default::default()
         };
         let keep = execute_with(&mut r, Command::OpenApp(App::Telegram));
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
 
         assert_eq!(r.calls.len(), 2);
         assert_eq!(r.calls[0].0, "Telegram");
@@ -202,7 +203,7 @@ mod tests {
             ..Default::default()
         };
         let keep = execute_with(&mut r, Command::OpenApp(App::Telegram));
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
 
         assert_eq!(r.calls.len(), 3);
         assert_eq!(r.calls[0].0, "Telegram");
@@ -215,7 +216,7 @@ mod tests {
     fn execute_volume_up_calls_wpctl() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::VolumeUp);
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
 
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "wpctl");
@@ -229,7 +230,7 @@ mod tests {
     fn execute_quit_stops() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::Quit);
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Quit);
         assert!(r.calls.is_empty());
     }
 
@@ -237,7 +238,7 @@ mod tests {
     fn execute_open_obsidian_spawns_obsidian() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::OpenApp(App::Obsidian));
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "obsidian");
     }
@@ -249,7 +250,7 @@ mod tests {
             ..Default::default()
         };
         let keep = execute_with(&mut r, Command::OpenApp(App::Obsidian));
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
 
         assert_eq!(r.calls.len(), 2);
         assert_eq!(r.calls[0].0, "obsidian");
@@ -261,7 +262,7 @@ mod tests {
     fn execute_open_steam_spawns_steam() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::OpenApp(App::Steam));
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
 
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "steam");
@@ -274,7 +275,7 @@ mod tests {
             ..Default::default()
         };
         let keep = execute_with(&mut r, Command::OpenApp(App::Steam));
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
 
         assert_eq!(r.calls.len(), 2);
         assert_eq!(r.calls[0].0, "steam");
@@ -286,7 +287,7 @@ mod tests {
     fn execute_audio_pause_calls_playerctl() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::AudioPause);
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
 
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "playerctl");
@@ -297,7 +298,7 @@ mod tests {
     fn execute_audio_next_calls_playerctl() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::AudioNext);
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
 
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "playerctl");
@@ -308,7 +309,7 @@ mod tests {
     fn execute_audio_previous_calls_playerctl() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::AudioPrevious);
-        assert_eq!(keep, "running");
+        assert_eq!(keep, CommandResult::Running);
 
         assert_eq!(r.calls.len(), 2);
         assert_eq!(r.calls[0].0, "playerctl");

@@ -25,3 +25,10 @@ pub enum App {
     Steam,
     Dolphin,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CommandResult {
+    Running,
+    EndConversation,
+    Quit,
+}
