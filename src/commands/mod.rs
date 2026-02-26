@@ -11,6 +11,7 @@ pub enum Command {
     AudioPrevious,
     FindInInternet(String),
     EndConversation,
+    Screenshot,
     Quit,
     Unknown(String),
 }

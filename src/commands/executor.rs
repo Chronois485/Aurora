@@ -46,6 +46,10 @@ pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> &str {
             "running"
         }
         Command::EndConversation => "end conversation",
+        Command::Screenshot => {
+            screenshot(runner);
+            "running"
+        }
         Command::Quit => "quit",
         Command::Unknown(_text) => "running",
     }
@@ -84,6 +88,10 @@ fn open_app<R: Runner>(runner: &mut R, app: App) {
 
 fn find_in_internet(promt: &String) {
     let _ = open::that(format!("https://www.google.com/search?q={}", promt));
+}
+
+fn screenshot<R: Runner>(runner: &mut R) {
+    runner.spawn("spectacle", &[]);
 }
 
 fn set_volume<R: Runner>(runner: &mut R, delta: &str) {

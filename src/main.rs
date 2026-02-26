@@ -44,7 +44,7 @@ fn main() -> Result<()> {
     if text_mode {
         loop {
             let mut cmd = String::new();
-            println!("{}", "[*] Waiting for command...".cyan());
+            println!("{}", "[*] Waiting for command...".cyan().italic());
             io::stdin().read_line(&mut cmd)?;
             let cmd = parse_command(cmd.trim());
             println!(
@@ -114,7 +114,7 @@ fn main() -> Result<()> {
         set_log_level(LogLevel::Error);
 
         println!();
-        println!("{}", "[*] Initializing...".magenta());
+        println!("{}", "[*] Initializing...".magenta().italic());
 
         let mut norm = AudioNormalizer::new();
         let model = Model::new(model_path).context("Vosk model not found")?;
@@ -169,7 +169,7 @@ fn main() -> Result<()> {
         let mut armed_until = Instant::now();
         let mut in_conversation = false;
 
-        println!("{}", "[+] Initialization complete!".green());
+        println!("{}", "[+] Initialization complete!".green().bold());
         println!();
         if continuous_mode {
             println!("{}", "[*] Continuous mode enabled".cyan().italic());
@@ -206,7 +206,7 @@ fn main() -> Result<()> {
                 }
 
                 if !armed {
-                    println!("{text}");
+                    println!("{}", format!("[*] You said: {}", text).cyan());
                     if contains_wake(text, wake_word) {
                         armed = true;
                         armed_until = Instant::now() + COMMAND_WINDOW;
