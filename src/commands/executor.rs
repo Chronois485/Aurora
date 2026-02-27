@@ -52,6 +52,30 @@ pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> CommandResult {
             screenshot(runner);
             CommandResult::Running
         }
+        Command::BrightnessDown => {
+            set_brightness(runner, "10%-");
+            CommandResult::Running
+        }
+        Command::BrightnessUp => {
+            set_brightness(runner, "10%+");
+            CommandResult::Running
+        }
+        Command::BrightnessMax => {
+            set_brightness(runner, "100%");
+            CommandResult::Running
+        }
+        Command::BrightnessMin => {
+            set_brightness(runner, "5%");
+            CommandResult::Running
+        }
+        Command::VolumeMute => {
+            set_volume_mute(runner);
+            CommandResult::Running
+        }
+        Command::VolumeMax => {
+            set_volume(runner, "100%");
+            CommandResult::Running
+        }
         Command::Quit => CommandResult::Quit,
         Command::Unknown(_text) => CommandResult::Running,
     }
@@ -96,6 +120,14 @@ fn screenshot<R: Runner>(runner: &mut R) {
 
 fn set_volume<R: Runner>(runner: &mut R, delta: &str) {
     runner.spawn("wpctl", &["set-volume", "@DEFAULT_AUDIO_SINK@", delta]);
+}
+
+fn set_volume_mute<R: Runner>(runner: &mut R) {
+    runner.spawn("wpctl", &["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]);
+}
+
+fn set_brightness<R: Runner>(runner: &mut R, delta: &str) {
+    runner.spawn("brightnessctl", &["set", delta]);
 }
 
 fn audio_pause<R: Runner>(runner: &mut R) {
@@ -316,5 +348,77 @@ mod tests {
         assert_eq!(r.calls[0].1, vec!["previous"]);
         assert_eq!(r.calls[1].0, "playerctl");
         assert_eq!(r.calls[1].1, vec!["previous"]);
+    }
+
+    #[test]
+    fn execute_audio_max_calls_wpctl() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::VolumeMax);
+        assert_eq!(keep, CommandResult::Running);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "wpctl");
+        assert_eq!(
+            r.calls[0].1,
+            vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "100%"]
+        );
+    }
+
+    #[test]
+    fn execute_audio_mute_calls_wpctl() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::VolumeMute);
+        assert_eq!(keep, CommandResult::Running);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "wpctl");
+        assert_eq!(
+            r.calls[0].1,
+            vec!["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]
+        );
+    }
+
+    #[test]
+    fn execute_brightness_max_calls_brightnessctl() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::BrightnessMax);
+        assert_eq!(keep, CommandResult::Running);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "brightnessctl");
+        assert_eq!(r.calls[0].1, vec!["set", "100%"]);
+    }
+
+    #[test]
+    fn execute_brightness_min_calls_brightnessctl() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::BrightnessMin);
+        assert_eq!(keep, CommandResult::Running);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "brightnessctl");
+        assert_eq!(r.calls[0].1, vec!["set", "5%"]);
+    }
+
+    #[test]
+    fn execute_brightness_up_calls_brightnessctl() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::BrightnessUp);
+        assert_eq!(keep, CommandResult::Running);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "brightnessctl");
+        assert_eq!(r.calls[0].1, vec!["set", "10%+"]);
+    }
+
+    #[test]
+    fn execute_brightness_down_calls_brightnessctl() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::BrightnessDown);
+        assert_eq!(keep, CommandResult::Running);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "brightnessctl");
+        assert_eq!(r.calls[0].1, vec!["set", "10%-"]);
     }
 }
