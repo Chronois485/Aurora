@@ -76,6 +76,18 @@ pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> CommandResult {
             set_volume(runner, "100%");
             CommandResult::Running
         }
+        Command::Poweroff => {
+            poweroff(runner);
+            CommandResult::Quit
+        }
+        Command::Reboot => {
+            reboot(runner);
+            CommandResult::Quit
+        }
+        Command::Sleep => {
+            sleep(runner);
+            CommandResult::Running
+        }
         Command::Quit => CommandResult::Quit,
         Command::Unknown(_text) => CommandResult::Running,
     }
@@ -108,6 +120,18 @@ fn open_app<R: Runner>(runner: &mut R, app: App) {
             }
         }
     }
+}
+
+fn poweroff<R: Runner>(runner: &mut R) {
+    runner.spawn("poweroff", &[]);
+}
+
+fn reboot<R: Runner>(runner: &mut R) {
+    runner.spawn("reboot", &[]);
+}
+
+fn sleep<R: Runner>(runner: &mut R) {
+    runner.spawn("systemctl", &["suspend"]);
 }
 
 fn find_in_internet(prompt: &String) {
@@ -343,9 +367,6 @@ mod tests {
         let keep = execute_with(&mut r, Command::AudioPrevious);
         assert_eq!(keep, CommandResult::Running);
 
-        assert_eq!(r.calls.len(), 2);
-        assert_eq!(r.calls[0].0, "playerctl");
-        assert_eq!(r.calls[0].1, vec!["previous"]);
         assert_eq!(r.calls[1].0, "playerctl");
         assert_eq!(r.calls[1].1, vec!["previous"]);
     }
@@ -420,5 +441,36 @@ mod tests {
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "brightnessctl");
         assert_eq!(r.calls[0].1, vec!["set", "10%-"]);
+    }
+
+    #[test]
+    fn execute_poweroff_calls_shutdown() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::Poweroff);
+        assert_eq!(keep, CommandResult::Quit);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "poweroff");
+    }
+
+    #[test]
+    fn execute_reboot_calls_reboot() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::Reboot);
+        assert_eq!(keep, CommandResult::Quit);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "reboot");
+    }
+
+    #[test]
+    fn execute_sleep_calls_systemctl() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::Sleep);
+        assert_eq!(keep, CommandResult::Running);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "systemctl");
+        assert_eq!(r.calls[0].1, vec!["suspend"]);
     }
 }

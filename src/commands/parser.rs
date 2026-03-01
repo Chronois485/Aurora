@@ -39,6 +39,18 @@ pub fn parse_command(raw: &str) -> Command {
         return Command::Screenshot;
     }
 
+    if has_any(&t, &["пк", "комп'ютер", "pc", "computer"]) {
+        if has_any(&t, &["shutdown", "poweroff", "вимкни"]) {
+            return Command::Poweroff;
+        }
+        if has_any(&t, &["restart", "reboot", "перезапусти"]) {
+            return Command::Reboot;
+        }
+        if has_any(&t, &["suspend", "sleep", "сон"]) {
+            return Command::Sleep;
+        }
+    }
+
     if has_any(&t, &["знайди ", "пошук ", "шукай ", "find ", "search "]) {
         for prefix in ["знайди ", "пошук ", "шукай ", "find ", "search "].iter() {
             if t.starts_with(prefix) {
