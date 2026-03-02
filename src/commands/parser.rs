@@ -198,32 +198,22 @@ pub fn parse_command(raw: &str) -> Command {
         return Command::AudioPrevious;
     }
 
-    // System toggles
-    if has_any(&t, &["увімкни", "включи", "enable", "turn on", "activate"]) {
-        if has_any(&t, &["wifi", "wi-fi", "вайфай", "бездротовий інтернет"])
-        {
-            return Command::SystemToggle(SystemToggles::Wifi);
-        }
-        if has_any(&t, &["bluetooth", "блутуз", "блютуз", "бездротовий"]) {
-            return Command::SystemToggle(SystemToggles::Bluetooth);
-        }
-        if has_any(&t, &["нічний режим", "night light", "нічне світло"]) {
-            return Command::SystemToggle(SystemToggles::NightLight);
-        }
-        if has_any(
-            &t,
-            &["не турбувати", "do not disturb", "dnd", "тихий режим"],
-        ) {
-            return Command::SystemToggle(SystemToggles::DoNotDisturb);
-        }
-        if has_any(&t, &["гучність", "звук", "громкість", "sound", "volume"]) {
-            return Command::SystemToggle(SystemToggles::Volume);
-        }
-    }
-
     if has_any(
         &t,
-        &["вимкни", "виключи", "disable", "turn off", "deactivate"],
+        &[
+            "увімкни",
+            "включи",
+            "enable",
+            "turn on",
+            "activate",
+            "вимкни",
+            "виключи",
+            "disable",
+            "turn off",
+            "deactivate",
+            "переключи",
+            "toggle",
+        ],
     ) {
         if has_any(&t, &["wifi", "wi-fi", "вайфай", "бездротовий інтернет"])
         {

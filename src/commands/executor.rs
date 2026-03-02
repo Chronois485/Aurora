@@ -149,7 +149,7 @@ fn system_toggle<R: Runner>(runner: &mut R, toggle: SystemToggles) {
             toggle_bluetooth(runner);
         }
         SystemToggles::NightLight => {
-            run_kde_command(runner, "/component/kwin", "Toggle Night Color");
+            toggle_night_light(runner);
         }
         SystemToggles::DoNotDisturb => {
             run_kde_command(runner, "/component/plasmashell", "toggle do not disturb");
@@ -164,6 +164,27 @@ fn toggle_wifi<R: Runner>(runner: &mut R) {
         runner.spawn("nmcli", &["radio", "wifi", "off"]);
     } else {
         runner.spawn("nmcli", &["radio", "wifi", "on"]);
+    }
+}
+
+fn toggle_night_light<R: Runner>(runner: &mut R) {
+    let night_light_status = runner.exec_output("xsct", &[]);
+    if let Some(status) = night_light_status.as_ref() {
+        let night_light_status: u16 = match status
+            .chars()
+            .filter(|char| char.is_digit(10))
+            .take(5)
+            .collect::<String>()
+            .parse()
+        {
+            Ok(status) => status,
+            Err(_) => 1000,
+        };
+        if night_light_status == 6500 {
+            runner.spawn("xsct", &["4500"]);
+        } else {
+            runner.spawn("xsct", &["6500"]);
+        }
     }
 }
 
@@ -246,6 +267,7 @@ mod tests {
         fail_telegram: bool,
         fail_telegram_desktop: bool,
         fail_steam: bool,
+        exec_output_values: std::collections::HashMap<String, String>,
     }
 
     impl Runner for FakeRunner {
@@ -285,6 +307,8 @@ mod tests {
                 } else {
                     Some("disabled\n".to_string())
                 }
+            } else if let Some(value) = self.exec_output_values.get(program) {
+                Some(value.clone())
             } else {
                 None
             }
@@ -602,22 +626,33 @@ mod tests {
                     );
                 }
                 SystemToggles::NightLight => {
+                    let mut r = FakeRunner::default();
+                    r.exec_output_values
+                        .insert("xsct".to_string(), "6500".to_string());
                     let keep =
                         execute_with(&mut r, Command::SystemToggle(SystemToggles::NightLight));
 
                     assert_eq!(keep, CommandResult::Running);
+                    assert_eq!(r.calls.len(), 2);
 
-                    assert_eq!(r.calls.len(), 1);
-                    assert_eq!(r.calls[0].0, "qdbus6");
-                    assert_eq!(
-                        r.calls[0].1,
-                        vec![
-                            "org.kde.kglobalaccel",
-                            "/component/kwin",
-                            "org.kde.kglobalaccel.Component.invokeShortcut",
-                            "\"Toggle Night Color\""
-                        ]
-                    );
+                    assert_eq!(r.calls[0].0, "xsct");
+                    assert_eq!(r.calls[0].1, Vec::<String>::new());
+
+                    assert_eq!(r.calls[1].0, "xsct");
+                    assert_eq!(r.calls[1].1, vec!["4500"]);
+
+                    let mut r = FakeRunner::default();
+                    r.exec_output_values
+                        .insert("xsct".to_string(), "4500".to_string());
+                    let keep =
+                        execute_with(&mut r, Command::SystemToggle(SystemToggles::NightLight));
+
+                    assert_eq!(keep, CommandResult::Running);
+                    assert_eq!(r.calls.len(), 2);
+                    assert_eq!(r.calls[0].0, "xsct");
+                    assert_eq!(r.calls[0].1, Vec::<String>::new());
+                    assert_eq!(r.calls[1].0, "xsct");
+                    assert_eq!(r.calls[1].1, vec!["6500"]);
                 }
             }
         }
