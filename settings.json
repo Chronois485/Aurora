@@ -1,7 +1,7 @@
 {
-  "text_mode": "true",
-  "conversation_mode": "false",
-  "language": "uk",
-  "model": "normal",
-  "fuzzy_matching_treshold": "0.p"
+    "text_mode": "false",
+    "conversation_mode": "false",
+    "language": "uk",
+    "model": "normal",
+    "fuzzy_matcher_threshold": "0.85"
 }

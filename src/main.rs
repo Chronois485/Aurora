@@ -9,7 +9,7 @@ use colored::Colorize;
 use commands::{executor, parser::parse_command};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use normalizer::{audio::AudioNormalizer, text};
-use settings::manager::{get_setting, print_settings};
+use settings::manager::SettingsManager;
 use std::sync::mpsc;
 use std::{
     io,
@@ -33,12 +33,11 @@ enum Models {
 }
 
 fn main() -> Result<()> {
-    let text_mode = matches!(
-        get_setting("text_mode", SETTINGS_FILE_PATH).as_str(),
-        "true"
-    );
+    let settings_manager = SettingsManager::new(String::from(SETTINGS_FILE_PATH));
 
-    print_settings(SETTINGS_FILE_PATH);
+    let text_mode = matches!(settings_manager.get_setting("text_mode").as_str(), "true");
+
+    settings_manager.print_settings();
     println!();
 
     if text_mode {
@@ -58,7 +57,7 @@ fn main() -> Result<()> {
             }
         }
     } else {
-        let model = match get_setting("model", SETTINGS_FILE_PATH).as_str() {
+        let model = match settings_manager.get_setting("model").as_str() {
             "nano" => Models::Nano,
             "small" => Models::Small,
             "normal" => Models::Normal,
@@ -73,7 +72,7 @@ fn main() -> Result<()> {
             }
         };
 
-        let language = match get_setting("language", SETTINGS_FILE_PATH).as_str() {
+        let language = match settings_manager.get_setting("language").as_str() {
             "uk" => Languages::Ukrainian,
             "en" => Languages::English,
             lang => {
@@ -103,7 +102,7 @@ fn main() -> Result<()> {
         });
 
         let continuous_mode = matches!(
-            get_setting("continuous_mode", SETTINGS_FILE_PATH).as_str(),
+            settings_manager.get_setting("continuous_mode").as_str(),
             "true"
         );
 

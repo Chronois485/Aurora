@@ -1,7 +1,7 @@
 use strsim::jaro_winkler;
 
 use super::{App, Command, SystemToggles};
-use crate::{normalizer::text::normalize, settings::manager::get_setting, SETTINGS_FILE_PATH};
+use crate::{normalizer::text::normalize, settings::manager::SettingsManager, SETTINGS_FILE_PATH};
 
 pub fn parse_command(raw: &str) -> Command {
     let t = normalize(raw);
@@ -264,7 +264,8 @@ pub fn parse_command(raw: &str) -> Command {
 }
 
 fn has_any(text: &str, needles: &[&str]) -> bool {
-    let treshold = get_setting("fuzzy_matcher_threshold", SETTINGS_FILE_PATH);
+    let settings_manager = SettingsManager::new(String::from(SETTINGS_FILE_PATH));
+    let treshold = settings_manager.get_setting("fuzzy_matcher_threshold");
 
     let treshold: f64 = treshold.parse().unwrap_or(0.85);
 
