@@ -1,9 +1,10 @@
-use crate::commands::CommandResult;
+use crate::commands::{CommandResult, SystemToggles};
 
 use super::{App, Command};
 
 pub trait Runner {
     fn spawn(&mut self, program: &str, args: &[&str]) -> bool;
+    fn exec_output(&mut self, program: &str, args: &[&str]) -> Option<String>;
 }
 
 pub struct SystemRunner;
@@ -14,6 +15,20 @@ impl Runner for SystemRunner {
             .args(args)
             .spawn()
             .is_ok()
+    }
+
+    fn exec_output(&mut self, program: &str, args: &[&str]) -> Option<String> {
+        std::process::Command::new(program)
+            .args(args)
+            .output()
+            .ok()
+            .and_then(|output| {
+                if output.status.success() {
+                    String::from_utf8(output.stdout).ok()
+                } else {
+                    None
+                }
+            })
     }
 }
 
@@ -68,12 +83,12 @@ pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> CommandResult {
             set_brightness(runner, "5%");
             CommandResult::Running
         }
-        Command::VolumeMute => {
-            set_volume_mute(runner);
-            CommandResult::Running
-        }
         Command::VolumeMax => {
             set_volume(runner, "100%");
+            CommandResult::Running
+        }
+        Command::SystemToggle(toggle) => {
+            system_toggle(runner, toggle);
             CommandResult::Running
         }
         Command::Poweroff => {
@@ -122,6 +137,57 @@ fn open_app<R: Runner>(runner: &mut R, app: App) {
     }
 }
 
+fn system_toggle<R: Runner>(runner: &mut R, toggle: SystemToggles) {
+    match toggle {
+        SystemToggles::Volume => {
+            runner.spawn("wpctl", &["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]);
+        }
+        SystemToggles::Wifi => {
+            toggle_wifi(runner);
+        }
+        SystemToggles::Bluetooth => {
+            toggle_bluetooth(runner);
+        }
+        SystemToggles::NightLight => {
+            run_kde_command(runner, "/component/kwin", "Toggle Night Color");
+        }
+        SystemToggles::DoNotDisturb => {
+            run_kde_command(runner, "/component/plasmashell", "toggle do not disturb");
+        }
+    }
+}
+
+fn toggle_wifi<R: Runner>(runner: &mut R) {
+    let wifi_status = runner.exec_output("nmcli", &["-t", "-f", "wifi", "radio"]);
+
+    if wifi_status.as_ref().map(|s| s.trim()) == Some("enabled") {
+        runner.spawn("nmcli", &["radio", "wifi", "off"]);
+    } else {
+        runner.spawn("nmcli", &["radio", "wifi", "on"]);
+    }
+}
+
+fn toggle_bluetooth<R: Runner>(runner: &mut R) {
+    let bluetooth_status = runner.exec_output("bluetooth", &[]);
+    if bluetooth_status.as_ref().map(|s| s.trim()) == Some("bluetooth = on") {
+        runner.spawn("bluetoothctl", &["power", "off"]);
+    } else {
+        runner.spawn("bluetoothctl", &["power", "on"]);
+    }
+}
+
+fn run_kde_command<R: Runner>(runner: &mut R, component: &str, program: &str) {
+    runner.spawn(
+        "qdbus6",
+        &[
+            "org.kde.kglobalaccel",
+            component,
+            "org.kde.kglobalaccel.Component.invokeShortcut",
+            format!("\"{}\"", program).as_str(),
+        ],
+    );
+}
+
 fn poweroff<R: Runner>(runner: &mut R) {
     runner.spawn("poweroff", &[]);
 }
@@ -144,10 +210,6 @@ fn screenshot<R: Runner>(runner: &mut R) {
 
 fn set_volume<R: Runner>(runner: &mut R, delta: &str) {
     runner.spawn("wpctl", &["set-volume", "@DEFAULT_AUDIO_SINK@", delta]);
-}
-
-fn set_volume_mute<R: Runner>(runner: &mut R) {
-    runner.spawn("wpctl", &["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]);
 }
 
 fn set_brightness<R: Runner>(runner: &mut R, delta: &str) {
@@ -207,6 +269,25 @@ mod tests {
             }
 
             true
+        }
+
+        fn exec_output(&mut self, program: &str, args: &[&str]) -> Option<String> {
+            self.calls.push((
+                program.to_string(),
+                args.iter().map(|s| s.to_string()).collect(),
+            ));
+
+            if program == "nmcli" && args == ["-t", "-f", "wifi", "radio"] {
+                use rand::random;
+                let wifi_enabled: bool = random();
+                if wifi_enabled {
+                    Some("enabled\n".to_string())
+                } else {
+                    Some("disabled\n".to_string())
+                }
+            } else {
+                None
+            }
         }
     }
 
@@ -386,20 +467,6 @@ mod tests {
     }
 
     #[test]
-    fn execute_audio_mute_calls_wpctl() {
-        let mut r = FakeRunner::default();
-        let keep = execute_with(&mut r, Command::VolumeMute);
-        assert_eq!(keep, CommandResult::Running);
-
-        assert_eq!(r.calls.len(), 1);
-        assert_eq!(r.calls[0].0, "wpctl");
-        assert_eq!(
-            r.calls[0].1,
-            vec!["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]
-        );
-    }
-
-    #[test]
     fn execute_brightness_max_calls_brightnessctl() {
         let mut r = FakeRunner::default();
         let keep = execute_with(&mut r, Command::BrightnessMax);
@@ -472,5 +539,87 @@ mod tests {
         assert_eq!(r.calls.len(), 1);
         assert_eq!(r.calls[0].0, "systemctl");
         assert_eq!(r.calls[0].1, vec!["suspend"]);
+    }
+
+    #[test]
+    fn system_toggle_tests() {
+        for toggle in SystemToggles::_iter() {
+            let mut r = FakeRunner::default();
+            match toggle {
+                SystemToggles::Wifi => {
+                    for _ in 0..=10 {
+                        let mut r = FakeRunner::default();
+                        let keep = execute_with(&mut r, Command::SystemToggle(SystemToggles::Wifi));
+
+                        assert_eq!(keep, CommandResult::Running);
+
+                        assert_eq!(r.calls.len(), 2);
+                        assert_eq!(r.calls[0].0, "nmcli");
+                        assert_eq!(r.calls[0].1, vec!["-t", "-f", "wifi", "radio"]);
+                        assert_eq!(r.calls[1].0, "nmcli");
+                        assert_eq!(r.calls[1].1[0..=1], vec!["radio", "wifi"]);
+                    }
+                }
+                SystemToggles::Bluetooth => {
+                    let keep =
+                        execute_with(&mut r, Command::SystemToggle(SystemToggles::Bluetooth));
+
+                    assert_eq!(keep, CommandResult::Running);
+
+                    assert_eq!(r.calls.len(), 2);
+                    assert_eq!(r.calls[0].0, "bluetooth");
+                    assert_eq!(r.calls[1].0, "bluetoothctl");
+                    assert_eq!(r.calls[1].1[0], "power");
+                }
+                SystemToggles::Volume => {
+                    let keep = execute_with(&mut r, Command::SystemToggle(SystemToggles::Volume));
+
+                    assert_eq!(keep, CommandResult::Running);
+
+                    assert_eq!(r.calls.len(), 1);
+                    assert_eq!(r.calls[0].0, "wpctl");
+                    assert_eq!(
+                        r.calls[0].1,
+                        vec!["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]
+                    );
+                }
+                SystemToggles::DoNotDisturb => {
+                    let keep =
+                        execute_with(&mut r, Command::SystemToggle(SystemToggles::DoNotDisturb));
+
+                    assert_eq!(keep, CommandResult::Running);
+
+                    assert_eq!(r.calls.len(), 1);
+                    assert_eq!(r.calls[0].0, "qdbus6");
+                    assert_eq!(
+                        r.calls[0].1,
+                        vec![
+                            "org.kde.kglobalaccel",
+                            "/component/plasmashell",
+                            "org.kde.kglobalaccel.Component.invokeShortcut",
+                            "\"toggle do not disturb\""
+                        ]
+                    );
+                }
+                SystemToggles::NightLight => {
+                    let keep =
+                        execute_with(&mut r, Command::SystemToggle(SystemToggles::NightLight));
+
+                    assert_eq!(keep, CommandResult::Running);
+
+                    assert_eq!(r.calls.len(), 1);
+                    assert_eq!(r.calls[0].0, "qdbus6");
+                    assert_eq!(
+                        r.calls[0].1,
+                        vec![
+                            "org.kde.kglobalaccel",
+                            "/component/kwin",
+                            "org.kde.kglobalaccel.Component.invokeShortcut",
+                            "\"Toggle Night Color\""
+                        ]
+                    );
+                }
+            }
+        }
     }
 }

@@ -1,5 +1,7 @@
-use super::{App, Command};
-use crate::normalizer::text::normalize;
+use strsim::jaro_winkler;
+
+use super::{App, Command, SystemToggles};
+use crate::{normalizer::text::normalize, settings::manager::get_setting, SETTINGS_FILE_PATH};
 
 pub fn parse_command(raw: &str) -> Command {
     let t = normalize(raw);
@@ -60,6 +62,21 @@ pub fn parse_command(raw: &str) -> Command {
         }
     }
 
+    if has_any(&t, &["minimum", "мінімум"]) {
+        if has_any(&t, &["яркість", "яркість екрану", "brightness"]) {
+            return Command::BrightnessMin;
+        }
+    }
+
+    if has_any(&t, &["maximum", "максимум"]) {
+        if has_any(&t, &["гучність", "звук", "громкість", "sound", "volume"]) {
+            return Command::VolumeMax;
+        }
+        if has_any(&t, &["яркість", "яркість екрану", "brightness"]) {
+            return Command::BrightnessMax;
+        }
+    }
+
     if has_any(
         &t,
         &[
@@ -98,37 +115,6 @@ pub fn parse_command(raw: &str) -> Command {
         }
         if has_any(&t, &["яркість", "яркість екрану", "brightness"]) {
             return Command::BrightnessDown;
-        }
-    }
-
-    if has_any(&t, &["minimum", "мінімум"]) {
-        if has_any(&t, &["яркість", "яркість екрану", "brightness"]) {
-            return Command::BrightnessMin;
-        }
-    }
-
-    if has_any(&t, &["minimum", "мінімум", "mute", "заглуши"]) {
-        if has_any(
-            &t,
-            &[
-                "гучність",
-                "звук",
-                "громкість",
-                "sound",
-                "volume",
-                "гучності",
-            ],
-        ) {
-            return Command::VolumeMute;
-        }
-    }
-
-    if has_any(&t, &["maximum", "максимум"]) {
-        if has_any(&t, &["гучність", "звук", "громкість", "sound", "volume"]) {
-            return Command::VolumeMax;
-        }
-        if has_any(&t, &["яркість", "яркість екрану", "brightness"]) {
-            return Command::BrightnessMax;
         }
     }
 
@@ -196,20 +182,6 @@ pub fn parse_command(raw: &str) -> Command {
         }
     }
 
-    if has_any(
-        &t,
-        &[
-            "постав на паузу",
-            "пауза",
-            "віднови",
-            "зніми з паузи",
-            "play",
-            "pause",
-        ],
-    ) {
-        return Command::AudioPause;
-    }
-
     if has_any(&t, &["наступний", "наступна", "наступне", "next"]) {
         return Command::AudioNext;
     } else if has_any(
@@ -226,11 +198,84 @@ pub fn parse_command(raw: &str) -> Command {
         return Command::AudioPrevious;
     }
 
+    // System toggles
+    if has_any(&t, &["увімкни", "включи", "enable", "turn on", "activate"]) {
+        if has_any(&t, &["wifi", "wi-fi", "вайфай", "бездротовий інтернет"])
+        {
+            return Command::SystemToggle(SystemToggles::Wifi);
+        }
+        if has_any(&t, &["bluetooth", "блутуз", "блютуз", "бездротовий"]) {
+            return Command::SystemToggle(SystemToggles::Bluetooth);
+        }
+        if has_any(&t, &["нічний режим", "night light", "нічне світло"]) {
+            return Command::SystemToggle(SystemToggles::NightLight);
+        }
+        if has_any(
+            &t,
+            &["не турбувати", "do not disturb", "dnd", "тихий режим"],
+        ) {
+            return Command::SystemToggle(SystemToggles::DoNotDisturb);
+        }
+        if has_any(&t, &["гучність", "звук", "громкість", "sound", "volume"]) {
+            return Command::SystemToggle(SystemToggles::Volume);
+        }
+    }
+
+    if has_any(
+        &t,
+        &["вимкни", "виключи", "disable", "turn off", "deactivate"],
+    ) {
+        if has_any(&t, &["wifi", "wi-fi", "вайфай", "бездротовий інтернет"])
+        {
+            return Command::SystemToggle(SystemToggles::Wifi);
+        }
+        if has_any(&t, &["bluetooth", "блутуз", "блютуз", "бездротовий"]) {
+            return Command::SystemToggle(SystemToggles::Bluetooth);
+        }
+        if has_any(&t, &["нічний режим", "night light", "нічне світло"]) {
+            return Command::SystemToggle(SystemToggles::NightLight);
+        }
+        if has_any(
+            &t,
+            &["не турбувати", "do not disturb", "dnd", "тихий режим"],
+        ) {
+            return Command::SystemToggle(SystemToggles::DoNotDisturb);
+        }
+        if has_any(&t, &["гучність", "звук", "громкість", "sound", "volume"]) {
+            return Command::SystemToggle(SystemToggles::Volume);
+        }
+    }
+
+    if has_any(
+        &t,
+        &[
+            "постав на паузу",
+            "пауза",
+            "віднови",
+            "зніми з паузи",
+            "play",
+            "pause",
+        ],
+    ) {
+        return Command::AudioPause;
+    }
+
     Command::Unknown(t)
 }
 
 fn has_any(text: &str, needles: &[&str]) -> bool {
-    needles.iter().any(|n| text.contains(n))
+    let treshold = get_setting("fuzzy_matcher_threshold", SETTINGS_FILE_PATH);
+
+    let treshold: f64 = treshold.parse().unwrap_or(0.85);
+
+    needles.iter().any(|needle| {
+        if text.contains(*needle) {
+            return true;
+        }
+
+        text.split_ascii_whitespace()
+            .any(|word| jaro_winkler(word, needle) >= treshold)
+    })
 }
 
 #[cfg(test)]
@@ -360,7 +405,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::EndConversation),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -377,7 +422,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::Screenshot),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -393,7 +438,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::BrightnessUp),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -409,7 +454,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::BrightnessDown),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -421,7 +466,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::BrightnessMax),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -433,19 +478,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::BrightnessMin),
-                "failed for phrase: {phrase}"
-            );
-        }
-    }
-
-    #[test]
-    fn parse_volume_mute() {
-        for phrase in ["заглуши звук", "mute volume", "гучність на мінімум"]
-        {
-            let cmd = parse_command(phrase);
-            assert!(
-                matches!(cmd, Command::VolumeMute),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -461,7 +494,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::VolumeMax),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -472,7 +505,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::OpenApp(App::Obsidian)),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -481,7 +514,10 @@ mod tests {
     fn parse_quit_en_variants() {
         for phrase in ["stop", "exit", "quit"] {
             let cmd = parse_command(phrase);
-            assert!(matches!(cmd, Command::Quit), "failed for phrase: {phrase}");
+            assert!(
+                matches!(cmd, Command::Quit),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
         }
     }
 
@@ -529,7 +565,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::VolumeUp),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -549,7 +585,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::VolumeDown),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -567,7 +603,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::AudioPause),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -583,7 +619,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::AudioNext),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -600,7 +636,7 @@ mod tests {
             let cmd = parse_command(phrase);
             assert!(
                 matches!(cmd, Command::AudioPrevious),
-                "failed for phrase: {phrase}"
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
         }
     }
@@ -627,5 +663,165 @@ mod tests {
     fn priority_screenshot_over_unknown() {
         let cmd = parse_command("зроби скріншот будь ласка");
         assert!(matches!(cmd, Command::Screenshot));
+    }
+
+    #[test]
+    fn parse_system_toggle_wifi_enable() {
+        for phrase in [
+            "увімкни wifi",
+            "включи вайфай",
+            "turn on wi-fi",
+            "enable wifi",
+        ] {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::SystemToggle(SystemToggles::Wifi)),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_system_toggle_wifi_disable() {
+        for phrase in [
+            "вимкни wifi",
+            "виключи вайфай",
+            "turn off wi-fi",
+            "disable wifi",
+        ] {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::SystemToggle(SystemToggles::Wifi)),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_system_toggle_bluetooth_enable() {
+        for phrase in [
+            "увімкни bluetooth",
+            "включи блутуз",
+            "turn on bluetooth",
+            "enable bluetooth",
+        ] {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::SystemToggle(SystemToggles::Bluetooth)),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_system_toggle_bluetooth_disable() {
+        for phrase in [
+            "вимкни bluetooth",
+            "виключи блутуз",
+            "turn off bluetooth",
+            "disable bluetooth",
+        ] {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::SystemToggle(SystemToggles::Bluetooth)),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_system_toggle_night_light_enable() {
+        for phrase in [
+            "увімкни нічний режим",
+            "включи night light",
+            "turn on night light",
+            "enable нічне світло",
+        ] {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::SystemToggle(SystemToggles::NightLight)),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_system_toggle_night_light_disable() {
+        for phrase in [
+            "вимкни нічний режим",
+            "виключи night light",
+            "turn off night light",
+            "disable нічне світло",
+        ] {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::SystemToggle(SystemToggles::NightLight)),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_system_toggle_do_not_disturb_enable() {
+        for phrase in [
+            "увімкни не турбувати",
+            "turn on dnd",
+            "enable тихий режим",
+            "включи режим не турбувати",
+        ] {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::SystemToggle(SystemToggles::DoNotDisturb)),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_system_toggle_do_not_disturb_disable() {
+        for phrase in [
+            "вимкни не турбувати",
+            "turn off dnd",
+            "disable тихий режим",
+            "виключи режим не турбувати",
+        ] {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::SystemToggle(SystemToggles::DoNotDisturb)),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_system_toggle_volume_enable() {
+        for phrase in [
+            "увімкни гучність",
+            "включи звук",
+            "turn on volume",
+            "enable sound",
+        ] {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::SystemToggle(SystemToggles::Volume)),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_system_toggle_volume_disable() {
+        for phrase in [
+            "вимкни гучність",
+            "виключи звук",
+            "turn off volume",
+            "disable sound",
+        ] {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::SystemToggle(SystemToggles::Volume)),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
     }
 }

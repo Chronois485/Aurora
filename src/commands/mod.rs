@@ -2,11 +2,32 @@ pub mod executor;
 pub mod parser;
 
 #[derive(Debug, Clone)]
+pub enum SystemToggles {
+    Volume,
+    Wifi,
+    Bluetooth,
+    NightLight,
+    DoNotDisturb,
+}
+
+impl SystemToggles {
+    pub fn _iter() -> impl Iterator<Item = Self> {
+        [
+            SystemToggles::Volume,
+            SystemToggles::Wifi,
+            SystemToggles::Bluetooth,
+            SystemToggles::NightLight,
+            SystemToggles::DoNotDisturb,
+        ]
+        .into_iter()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Command {
     OpenApp(App),
     VolumeUp,
     VolumeDown,
-    VolumeMute,
     VolumeMax,
     BrightnessUp,
     BrightnessDown,
@@ -21,6 +42,7 @@ pub enum Command {
     FindInInternet(String),
     EndConversation,
     Screenshot,
+    SystemToggle(SystemToggles),
     Quit,
     Unknown(String),
 }

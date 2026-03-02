@@ -2,5 +2,6 @@
   "text_mode": "true",
   "conversation_mode": "false",
   "language": "uk",
-  "model": "normal"
+  "model": "normal",
+  "fuzzy_matching_treshold": "0.p"
 }
