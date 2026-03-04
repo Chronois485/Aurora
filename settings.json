@@ -1,7 +1,9 @@
 {
-    "text_mode": "true",
-    "conversation_mode": "false",
-    "language": "uk",
-    "model": "normal",
-    "fuzzy_matcher_threshold": "0.85"
+  "text_mode": "true",
+  "conversation_mode": "false",
+  "language": "uk",
+  "model": "normal",
+  "fuzzy_matcher_threshold": "0.85",
+  "quick_folders": "~/Documents:Документи,Documents;~/Downloads:Завантажене,Завантаження,Загрузки,Downloads;~/Documents/programiring/rust/aurora:Проєкт,Project",
+  "open_folder_in_terminal": "true"
 }

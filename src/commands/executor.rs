@@ -1,6 +1,10 @@
-use crate::commands::{CommandResult, SystemToggles};
+use crate::{
+    commands::{CommandResult, SystemToggles},
+    settings::manager::SettingsManager,
+    SETTINGS_FILE_PATH,
+};
 
-use super::{App, Command};
+use super::{has_any, App, Command};
 
 pub trait Runner {
     fn spawn(&mut self, program: &str, args: &[&str]) -> bool;
@@ -103,6 +107,32 @@ pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> CommandResult {
             sleep(runner);
             CommandResult::Running
         }
+        Command::OpenFolder(folder) => {
+            let settings_manager = SettingsManager::new(String::from(SETTINGS_FILE_PATH));
+            let quick_folders = settings_manager.get_setting("quick_folders");
+            let folder_lower = folder.to_lowercase();
+            for quick_folder in quick_folders.split(';') {
+                let parts: Vec<&str> = quick_folder.split(':').collect();
+                if parts.len() == 2 {
+                    let (destination, key_words) = (parts[0], parts[1]);
+                    let key_words: Vec<String> =
+                        key_words.split(',').map(|s| s.to_lowercase()).collect();
+                    let key_words: Vec<&str> = key_words.iter().map(|s| s.as_str()).collect();
+                    if has_any(&folder_lower, &key_words) {
+                        println!("{}\n{:?}\n{}", folder_lower, key_words, destination);
+                        if settings_manager.get_setting("open_folder_in_terminal") == "true" {
+                            runner.spawn("kitty", &["-d", destination]);
+                        } else {
+                            runner.spawn("dolphin", &[destination]);
+                        }
+                        return CommandResult::Running;
+                    }
+                } else {
+                    continue;
+                }
+            }
+            CommandResult::Running
+        }
         Command::Quit => CommandResult::Quit,
         Command::Unknown(_text) => CommandResult::Running,
     }
@@ -114,7 +144,7 @@ fn open_app<R: Runner>(runner: &mut R, app: App) {
             runner.spawn("firefox", &[]);
         }
         App::Terminal => {
-            runner.spawn("ghostty", &[]);
+            runner.spawn("kitty", &[]);
         }
         App::Dolphin => {
             runner.spawn("dolphin", &[]);
@@ -656,5 +686,73 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn execute_open_terminal_spawns_kitty() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::OpenApp(App::Terminal));
+        assert_eq!(keep, CommandResult::Running);
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "kitty");
+    }
+
+    #[test]
+    fn execute_screenshot_spawns_spectacle() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::Screenshot);
+        assert_eq!(keep, CommandResult::Running);
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "spectacle");
+    }
+
+    #[test]
+    fn execute_volume_down_calls_wpctl() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::VolumeDown);
+        assert_eq!(keep, CommandResult::Running);
+
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "wpctl");
+        assert_eq!(
+            r.calls[0].1,
+            vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "5%-"]
+        );
+    }
+
+    #[test]
+    fn execute_end_conversation_returns_end_conversation() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::EndConversation);
+        assert_eq!(keep, CommandResult::EndConversation);
+        assert!(r.calls.is_empty());
+    }
+
+    #[test]
+    fn execute_unknown_returns_running() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::Unknown("test".to_string()));
+        assert_eq!(keep, CommandResult::Running);
+        assert!(r.calls.is_empty());
+    }
+
+    #[test]
+    fn execute_audio_previous_calls_playerctl_twice() {
+        let mut r = FakeRunner::default();
+        let keep = execute_with(&mut r, Command::AudioPrevious);
+        assert_eq!(keep, CommandResult::Running);
+
+        assert_eq!(r.calls.len(), 2);
+        assert_eq!(r.calls[0].0, "playerctl");
+        assert_eq!(r.calls[0].1, vec!["previous"]);
+        assert_eq!(r.calls[1].0, "playerctl");
+        assert_eq!(r.calls[1].1, vec!["previous"]);
+    }
+
+    #[test]
+    fn execute_find_in_internet_opens_browser() {
+        let prompt = "rust programming".to_string();
+        let result = execute(Command::FindInInternet(prompt.clone()));
+        assert_eq!(result, CommandResult::Running);
     }
 }

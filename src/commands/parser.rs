@@ -1,7 +1,5 @@
-use strsim::jaro_winkler;
-
-use super::{App, Command, SystemToggles};
-use crate::{normalizer::text::normalize, settings::manager::SettingsManager, SETTINGS_FILE_PATH};
+use super::{has_any, App, Command, SystemToggles};
+use crate::normalizer::text::normalize;
 
 pub fn parse_command(raw: &str) -> Command {
     let t = normalize(raw);
@@ -140,7 +138,7 @@ pub fn parse_command(raw: &str) -> Command {
                 "термінал",
                 "консоль",
                 "командний рядок",
-                "ghostty",
+                "kitty",
                 "terminal",
             ],
         ) {
@@ -179,6 +177,17 @@ pub fn parse_command(raw: &str) -> Command {
         }
         if has_any(&t, &["telegram", "месенджер", "телеграм", "messenger"]) {
             return Command::OpenApp(App::Telegram);
+        }
+        if has_any(&t, &["папку", "folder"]) {
+            for prefix1 in ["відкрий", "запусти", "включи", "open", "launch"] {
+                for prefix2 in ["папку", "folder"] {
+                    let prefix = format!("{} {}", prefix1, prefix2);
+                    if t.starts_with(&prefix) {
+                        let folder = t.trim_start_matches(&prefix).trim().to_string();
+                        return Command::OpenFolder(folder);
+                    }
+                }
+            }
         }
     }
 
@@ -251,22 +260,6 @@ pub fn parse_command(raw: &str) -> Command {
     }
 
     Command::Unknown(t)
-}
-
-fn has_any(text: &str, needles: &[&str]) -> bool {
-    let settings_manager = SettingsManager::new(String::from(SETTINGS_FILE_PATH));
-    let treshold = settings_manager.get_setting("fuzzy_matcher_threshold");
-
-    let treshold: f64 = treshold.parse().unwrap_or(0.85);
-
-    needles.iter().any(|needle| {
-        if text.contains(*needle) {
-            return true;
-        }
-
-        text.split_ascii_whitespace()
-            .any(|word| jaro_winkler(word, needle) >= treshold)
-    })
 }
 
 #[cfg(test)]
@@ -813,6 +806,90 @@ mod tests {
                 matches!(cmd, Command::SystemToggle(SystemToggles::Volume)),
                 "failed for phrase: {phrase} parsed as: {cmd:?}"
             );
+        }
+    }
+
+    #[test]
+    fn parse_pc_poweroff() {
+        for phrase in [
+            "вимкни комп'ютер",
+            "pc shutdown",
+            "computer poweroff",
+            "вимкни пк",
+        ] {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::Poweroff),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_pc_reboot() {
+        for phrase in [
+            "перезапусти комп'ютер",
+            "pc restart",
+            "computer reboot",
+            "перезапусти пк",
+        ] {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::Reboot),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_pc_sleep() {
+        for phrase in ["сон комп'ютера", "pc sleep", "computer suspend", "сон пк"]
+        {
+            let cmd = parse_command(phrase);
+            assert!(
+                matches!(cmd, Command::Sleep),
+                "failed for phrase: {phrase} parsed as: {cmd:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_open_folder_ukrainian() {
+        let cmd = parse_command("відкрий папку documents");
+        if let Command::OpenFolder(folder) = cmd {
+            assert_eq!(folder, "documents");
+        } else {
+            panic!("expected OpenFolder, got: {cmd:?}");
+        }
+    }
+
+    #[test]
+    fn parse_open_folder_english() {
+        let cmd = parse_command("open folder project");
+        if let Command::OpenFolder(folder) = cmd {
+            assert_eq!(folder, "project");
+        } else {
+            panic!("expected OpenFolder, got: {cmd:?}");
+        }
+    }
+
+    #[test]
+    fn parse_open_folder_with_launch() {
+        let cmd = parse_command("запусти папку завантаження");
+        if let Command::OpenFolder(folder) = cmd {
+            assert_eq!(folder, "завантаження");
+        } else {
+            panic!("expected OpenFolder, got: {cmd:?}");
+        }
+    }
+
+    #[test]
+    fn parse_open_folder_extra_whitespace() {
+        let cmd = parse_command("відкрий папку документи");
+        if let Command::OpenFolder(folder) = cmd {
+            assert_eq!(folder, "документи");
+        } else {
+            panic!("expected OpenFolder, got: {cmd:?}");
         }
     }
 }
