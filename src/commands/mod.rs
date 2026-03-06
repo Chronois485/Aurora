@@ -30,6 +30,7 @@ impl SystemToggles {
 pub enum Command {
     OpenApp(App),
     OpenFolder(String),
+    Dictate(String),
     VolumeUp,
     VolumeDown,
     VolumeMax,

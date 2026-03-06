@@ -68,6 +68,14 @@ pub fn parse_command(raw: &str) -> Command {
             return Command::SwitchWorkspace(workspace.parse().unwrap_or(0));
         }
     }
+    if has_any(&t, &["диктую", "слухай", "listen", "dictate"]) {
+        for prefix in ["диктую", "слухай", "listen", "dictate"].iter() {
+            if t.starts_with(prefix) {
+                let query = t.trim_start_matches(&format!("{} ", prefix));
+                return Command::Dictate(query.to_string());
+            }
+        }
+    }
 
     if has_any(&t, &["minimum", "мінімум"]) {
         if has_any(&t, &["яркість", "яркість екрану", "brightness"]) {

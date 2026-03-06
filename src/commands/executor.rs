@@ -6,6 +6,8 @@ use crate::{
 
 use super::{has_any, App, Command};
 
+use enigo::{Enigo, Keyboard, Settings};
+
 pub trait Runner {
     fn spawn(&mut self, program: &str, args: &[&str]) -> bool;
     fn exec_output(&mut self, program: &str, args: &[&str]) -> Option<String>;
@@ -38,111 +40,65 @@ impl Runner for SystemRunner {
 
 pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> CommandResult {
     match cmd {
-        Command::SwitchWorkspace(workspace) => {
-            switch_workspace(runner, workspace);
-            CommandResult::Running
-        }
-        Command::OpenApp(app) => {
-            open_app(runner, app);
-            CommandResult::Running
-        }
-        Command::VolumeUp => {
-            set_volume(runner, "5%+");
-            CommandResult::Running
-        }
-        Command::VolumeDown => {
-            set_volume(runner, "5%-");
-            CommandResult::Running
-        }
-        Command::AudioPause => {
-            audio_pause(runner);
-            CommandResult::Running
-        }
-        Command::AudioNext => {
-            audio_next(runner);
-            CommandResult::Running
-        }
-        Command::AudioPrevious => {
-            audio_previous(runner);
-            CommandResult::Running
-        }
-        Command::FindInInternet(prompt) => {
-            find_in_internet(runner, &prompt);
-            CommandResult::Running
-        }
+        Command::Dictate(text) => dictate(text.as_str()),
+        Command::SwitchWorkspace(workspace) => switch_workspace(runner, workspace),
+        Command::OpenApp(app) => open_app(runner, app),
+        Command::VolumeUp => set_volume(runner, "5%+"),
+        Command::VolumeDown => set_volume(runner, "5%-"),
+        Command::AudioPause => audio_pause(runner),
+        Command::AudioNext => audio_next(runner),
+        Command::AudioPrevious => audio_previous(runner),
+        Command::FindInInternet(prompt) => find_in_internet(runner, &prompt),
         Command::EndConversation => CommandResult::EndConversation,
-        Command::Screenshot => {
-            screenshot(runner);
-            CommandResult::Running
-        }
-        Command::BrightnessDown => {
-            set_brightness(runner, "10%-");
-            CommandResult::Running
-        }
-        Command::BrightnessUp => {
-            set_brightness(runner, "10%+");
-            CommandResult::Running
-        }
-        Command::BrightnessMax => {
-            set_brightness(runner, "100%");
-            CommandResult::Running
-        }
-        Command::BrightnessMin => {
-            set_brightness(runner, "5%");
-            CommandResult::Running
-        }
-        Command::VolumeMax => {
-            set_volume(runner, "100%");
-            CommandResult::Running
-        }
-        Command::SystemToggle(toggle) => {
-            system_toggle(runner, toggle);
-            CommandResult::Running
-        }
-        Command::Poweroff => {
-            poweroff(runner);
-            CommandResult::Quit
-        }
-        Command::Reboot => {
-            reboot(runner);
-            CommandResult::Quit
-        }
-        Command::Sleep => {
-            sleep(runner);
-            CommandResult::Running
-        }
-        Command::OpenFolder(folder) => {
-            let settings_manager = SettingsManager::new(String::from(SETTINGS_FILE_PATH));
-            let quick_folders = settings_manager.get_setting("quick_folders");
-            let folder_lower = folder.to_lowercase();
-            for quick_folder in quick_folders.split(';') {
-                let parts: Vec<&str> = quick_folder.split(':').collect();
-                if parts.len() == 2 {
-                    let (destination, key_words) = (parts[0], parts[1]);
-                    let key_words: Vec<String> =
-                        key_words.split(',').map(|s| s.to_lowercase()).collect();
-                    let key_words: Vec<&str> = key_words.iter().map(|s| s.as_str()).collect();
-                    if has_any(&folder_lower, &key_words) {
-                        println!("{}\n{:?}\n{}", folder_lower, key_words, destination);
-                        if settings_manager.get_setting("open_folder_in_terminal") == "true" {
-                            runner.spawn("kitty", &["-d", destination]);
-                        } else {
-                            runner.spawn("dolphin", &[destination]);
-                        }
-                        return CommandResult::Running;
-                    }
-                } else {
-                    continue;
-                }
-            }
-            CommandResult::Running
-        }
+        Command::Screenshot => screenshot(runner),
+        Command::BrightnessDown => set_brightness(runner, "10%-"),
+        Command::BrightnessUp => set_brightness(runner, "10%+"),
+        Command::BrightnessMax => set_brightness(runner, "100%"),
+        Command::BrightnessMin => set_brightness(runner, "5%"),
+        Command::VolumeMax => set_volume(runner, "100%"),
+        Command::SystemToggle(toggle) => system_toggle(runner, toggle),
+        Command::Poweroff => poweroff(runner),
+        Command::Reboot => reboot(runner),
+        Command::Sleep => sleep(runner),
+        Command::OpenFolder(folder) => open_folder(runner, folder.as_str()),
         Command::Quit => CommandResult::Quit,
         Command::Unknown(_text) => CommandResult::Running,
     }
 }
 
-fn switch_workspace<R: Runner>(runner: &mut R, workspace: u8) {
+fn dictate(text: &str) -> CommandResult {
+    let mut enigo = Enigo::new(&Settings::default()).unwrap();
+    let _ = enigo.text(text);
+    CommandResult::Running
+}
+
+fn open_folder<R: Runner>(runner: &mut R, folder: &str) -> CommandResult {
+    let settings_manager = SettingsManager::new(String::from(SETTINGS_FILE_PATH));
+    let quick_folders = settings_manager.get_setting("quick_folders");
+    let folder_lower = folder.to_lowercase();
+    for quick_folder in quick_folders.split(';') {
+        let parts: Vec<&str> = quick_folder.split(':').collect();
+        if parts.len() == 2 {
+            let (destination, key_words) = (parts[0], parts[1]);
+            let key_words: Vec<String> = key_words.split(',').map(|s| s.to_lowercase()).collect();
+            let key_words: Vec<&str> = key_words.iter().map(|s| s.as_str()).collect();
+            if has_any(&folder_lower, &key_words) {
+                println!("{}\n{:?}\n{}", folder_lower, key_words, destination);
+                if settings_manager.get_setting("open_folder_in_terminal") == "true" {
+                    runner.spawn("kitty", &["-d", destination]);
+                } else {
+                    runner.spawn("dolphin", &[destination]);
+                }
+                return CommandResult::Running;
+            }
+        } else {
+            continue;
+        }
+    }
+    CommandResult::Running
+}
+
+fn switch_workspace<R: Runner>(runner: &mut R, workspace: u8) -> CommandResult {
     match runner.exec_output("sh", &["-c", "echo $XDG_CURRENT_DESKTOP"]) {
         Some(val) => {
             if val.contains("Hyprland") {
@@ -150,7 +106,6 @@ fn switch_workspace<R: Runner>(runner: &mut R, workspace: u8) {
                     "~/.config/hypr/hyprland/scripts/workspace_action.sh",
                     &["workspace", &workspace.to_string()],
                 );
-                println!("hyprland workspace: {}", &workspace.to_string());
             } else if val.contains("KDE") {
                 runner.spawn(
                     "qdbus6",
@@ -165,9 +120,10 @@ fn switch_workspace<R: Runner>(runner: &mut R, workspace: u8) {
         }
         None => {}
     }
+    CommandResult::Running
 }
 
-fn open_app<R: Runner>(runner: &mut R, app: App) {
+fn open_app<R: Runner>(runner: &mut R, app: App) -> CommandResult {
     match app {
         App::Firefox => {
             runner.spawn("firefox", &[]);
@@ -194,9 +150,10 @@ fn open_app<R: Runner>(runner: &mut R, app: App) {
             }
         }
     }
+    CommandResult::Running
 }
 
-fn system_toggle<R: Runner>(runner: &mut R, toggle: SystemToggles) {
+fn system_toggle<R: Runner>(runner: &mut R, toggle: SystemToggles) -> CommandResult {
     match toggle {
         SystemToggles::Volume => {
             runner.spawn("wpctl", &["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]);
@@ -214,6 +171,7 @@ fn system_toggle<R: Runner>(runner: &mut R, toggle: SystemToggles) {
             run_kde_command(runner, "/component/plasmashell", "toggle do not disturb");
         }
     }
+    CommandResult::Running
 }
 
 fn toggle_wifi<R: Runner>(runner: &mut R) {
@@ -268,48 +226,58 @@ fn run_kde_command<R: Runner>(runner: &mut R, component: &str, program: &str) {
     );
 }
 
-fn poweroff<R: Runner>(runner: &mut R) {
+fn poweroff<R: Runner>(runner: &mut R) -> CommandResult {
     runner.spawn("poweroff", &[]);
+    CommandResult::Quit
 }
 
-fn reboot<R: Runner>(runner: &mut R) {
+fn reboot<R: Runner>(runner: &mut R) -> CommandResult {
     runner.spawn("reboot", &[]);
+    CommandResult::Quit
 }
 
-fn sleep<R: Runner>(runner: &mut R) {
+fn sleep<R: Runner>(runner: &mut R) -> CommandResult {
     runner.spawn("systemctl", &["suspend"]);
+    CommandResult::Running
 }
 
-fn find_in_internet<R: Runner>(runner: &mut R, prompt: &String) {
+fn find_in_internet<R: Runner>(runner: &mut R, prompt: &String) -> CommandResult {
     runner.spawn(
         "xdg-open",
         &[format!("https://www.google.com/search?q={}", prompt).as_str()],
     );
+    CommandResult::Running
 }
 
-fn screenshot<R: Runner>(runner: &mut R) {
+fn screenshot<R: Runner>(runner: &mut R) -> CommandResult {
     runner.spawn("spectacle", &[]);
+    CommandResult::Running
 }
 
-fn set_volume<R: Runner>(runner: &mut R, delta: &str) {
+fn set_volume<R: Runner>(runner: &mut R, delta: &str) -> CommandResult {
     runner.spawn("wpctl", &["set-volume", "@DEFAULT_AUDIO_SINK@", delta]);
+    CommandResult::Running
 }
 
-fn set_brightness<R: Runner>(runner: &mut R, delta: &str) {
+fn set_brightness<R: Runner>(runner: &mut R, delta: &str) -> CommandResult {
     runner.spawn("brightnessctl", &["set", delta]);
+    CommandResult::Running
 }
 
-fn audio_pause<R: Runner>(runner: &mut R) {
+fn audio_pause<R: Runner>(runner: &mut R) -> CommandResult {
     runner.spawn("playerctl", &["play-pause"]);
+    CommandResult::Running
 }
-fn audio_next<R: Runner>(runner: &mut R) {
+fn audio_next<R: Runner>(runner: &mut R) -> CommandResult {
     runner.spawn("playerctl", &["next"]);
+    CommandResult::Running
 }
 
-fn audio_previous<R: Runner>(runner: &mut R) {
+fn audio_previous<R: Runner>(runner: &mut R) -> CommandResult {
     // Call twice to skip to the previous track (first call restarts current track)
     runner.spawn("playerctl", &["previous"]);
     runner.spawn("playerctl", &["previous"]);
+    CommandResult::Running
 }
 
 pub fn execute(cmd: Command) -> CommandResult {
