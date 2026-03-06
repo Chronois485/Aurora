@@ -60,6 +60,15 @@ pub fn parse_command(raw: &str) -> Command {
         }
     }
 
+    if has_any(&t, &["робочий стіл", "workspace"]) {
+        if let Some(workspace) = t.strip_prefix("робочий стіл ") {
+            return Command::SwitchWorkspace(workspace.parse().unwrap_or(0));
+        }
+        if let Some(workspace) = t.strip_prefix("workspace ") {
+            return Command::SwitchWorkspace(workspace.parse().unwrap_or(0));
+        }
+    }
+
     if has_any(&t, &["minimum", "мінімум"]) {
         if has_any(&t, &["яркість", "яркість екрану", "brightness"]) {
             return Command::BrightnessMin;
@@ -890,6 +899,16 @@ mod tests {
             assert_eq!(folder, "документи");
         } else {
             panic!("expected OpenFolder, got: {cmd:?}");
+        }
+    }
+
+    #[test]
+    fn parse_switch_workspace() {
+        let cmd = parse_command("робочий стіл 3");
+        if let Command::SwitchWorkspace(workspace) = cmd {
+            assert_eq!(workspace, 3);
+        } else {
+            panic!("expected SwitchWorkspace, got: {cmd:?}");
         }
     }
 }

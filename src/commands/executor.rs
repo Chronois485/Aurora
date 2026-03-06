@@ -38,6 +38,10 @@ impl Runner for SystemRunner {
 
 pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> CommandResult {
     match cmd {
+        Command::SwitchWorkspace(workspace) => {
+            switch_workspace(runner, workspace);
+            CommandResult::Running
+        }
         Command::OpenApp(app) => {
             open_app(runner, app);
             CommandResult::Running
@@ -63,7 +67,7 @@ pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> CommandResult {
             CommandResult::Running
         }
         Command::FindInInternet(prompt) => {
-            find_in_internet(&prompt);
+            find_in_internet(runner, &prompt);
             CommandResult::Running
         }
         Command::EndConversation => CommandResult::EndConversation,
@@ -135,6 +139,31 @@ pub fn execute_with<R: Runner>(runner: &mut R, cmd: Command) -> CommandResult {
         }
         Command::Quit => CommandResult::Quit,
         Command::Unknown(_text) => CommandResult::Running,
+    }
+}
+
+fn switch_workspace<R: Runner>(runner: &mut R, workspace: u8) {
+    match runner.exec_output("sh", &["-c", "echo $XDG_CURRENT_DESKTOP"]) {
+        Some(val) => {
+            if val.contains("Hyprland") {
+                runner.spawn(
+                    "~/.config/hypr/hyprland/scripts/workspace_action.sh",
+                    &["workspace", &workspace.to_string()],
+                );
+                println!("hyprland workspace: {}", &workspace.to_string());
+            } else if val.contains("KDE") {
+                runner.spawn(
+                    "qdbus6",
+                    &[
+                        "org.kde.KWin",
+                        "/KWin",
+                        "setCurrentDesktop",
+                        &workspace.to_string(),
+                    ],
+                );
+            }
+        }
+        None => {}
     }
 }
 
@@ -251,8 +280,11 @@ fn sleep<R: Runner>(runner: &mut R) {
     runner.spawn("systemctl", &["suspend"]);
 }
 
-fn find_in_internet(prompt: &String) {
-    let _ = open::that(format!("https://www.google.com/search?q={}", prompt));
+fn find_in_internet<R: Runner>(runner: &mut R, prompt: &String) {
+    runner.spawn(
+        "xdg-open",
+        &[format!("https://www.google.com/search?q={}", prompt).as_str()],
+    );
 }
 
 fn screenshot<R: Runner>(runner: &mut R) {
@@ -287,6 +319,8 @@ pub fn execute(cmd: Command) -> CommandResult {
 
 #[cfg(test)]
 mod tests {
+    use rand::random;
+
     use super::*;
     use crate::commands::{App, Command};
 
@@ -298,6 +332,7 @@ mod tests {
         fail_telegram_desktop: bool,
         fail_steam: bool,
         exec_output_values: std::collections::HashMap<String, String>,
+        enviroment: String,
     }
 
     impl Runner for FakeRunner {
@@ -337,6 +372,8 @@ mod tests {
                 } else {
                     Some("disabled\n".to_string())
                 }
+            } else if program == "sh" && args == ["-c", "echo $XDG_CURRENT_DESKTOP"] {
+                Some(format!("{}\n", self.enviroment))
             } else if let Some(value) = self.exec_output_values.get(program) {
                 Some(value.clone())
             } else {
@@ -751,8 +788,66 @@ mod tests {
 
     #[test]
     fn execute_find_in_internet_opens_browser() {
+        let mut r = FakeRunner::default();
         let prompt = "rust programming".to_string();
-        let result = execute(Command::FindInInternet(prompt.clone()));
+        let result = execute_with(&mut r, Command::FindInInternet(prompt.clone()));
         assert_eq!(result, CommandResult::Running);
+        assert_eq!(r.calls.len(), 1);
+        assert_eq!(r.calls[0].0, "xdg-open");
+        assert!(r.calls[0].1[0].contains("https://www.google.com/search?q="));
+        assert!(r.calls[0].1[0].contains("rust"));
+        assert!(r.calls[0].1[0].contains("programming"));
+    }
+
+    #[test]
+    fn execute_switch_workspace_switches_workspace() {
+        let mut r = FakeRunner {
+            enviroment: String::from("Hyprland"),
+            ..Default::default()
+        };
+        let keep = execute_with(&mut r, Command::SwitchWorkspace(7));
+        assert_eq!(keep, CommandResult::Running);
+        assert_eq!(r.calls.len(), 2);
+        assert_eq!(
+            r.calls[1].0,
+            "~/.config/hypr/hyprland/scripts/workspace_action.sh"
+        );
+        assert_eq!(r.calls[1].1, vec!["workspace", "7"]);
+    }
+
+    #[test]
+    fn random_tests_for_switch_workspace() {
+        for i in 0..100 {
+            let enviroment = match random::<bool>() {
+                true => String::from("Hyprland"),
+                false => String::from("KDE"),
+            };
+            let mut r = FakeRunner {
+                enviroment,
+                ..Default::default()
+            };
+            let keep = execute_with(&mut r, Command::SwitchWorkspace(7));
+            assert_eq!(keep, CommandResult::Running);
+            assert_eq!(r.calls.len(), 2);
+
+            println!(
+                "{i}\n{}\n{}\n{:?}",
+                r.enviroment, r.calls[1].0, r.calls[1].1
+            );
+
+            if r.enviroment.as_str() == "Hyprland" {
+                assert_eq!(
+                    r.calls[1].0,
+                    "~/.config/hypr/hyprland/scripts/workspace_action.sh"
+                );
+                assert_eq!(r.calls[1].1, vec!["workspace", "7"]);
+            } else {
+                assert_eq!(r.calls[1].0, "qdbus6");
+                assert_eq!(
+                    r.calls[1].1,
+                    vec!["org.kde.KWin", "/KWin", "setCurrentDesktop", "7"]
+                );
+            }
+        }
     }
 }

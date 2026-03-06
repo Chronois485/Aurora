@@ -47,6 +47,7 @@ pub enum Command {
     EndConversation,
     Screenshot,
     SystemToggle(SystemToggles),
+    SwitchWorkspace(u8),
     Quit,
     Unknown(String),
 }
